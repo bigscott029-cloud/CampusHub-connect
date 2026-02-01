@@ -6,12 +6,18 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
+import AdPopup from "@/components/ads/AdPopup";
 
 // Public pages
 import Index from "./pages/Index";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import NotFound from "./pages/NotFound";
+import Features from "./pages/Features";
+import Universities from "./pages/Universities";
+import UniversityDetail from "./pages/UniversityDetail";
+import About from "./pages/About";
+import Safety from "./pages/Safety";
 
 // Protected pages
 import Dashboard from "./pages/Dashboard";
@@ -20,6 +26,7 @@ import Anonymous from "./pages/Anonymous";
 import Hostel from "./pages/Hostel";
 import Marketplace from "./pages/Marketplace";
 import Messages from "./pages/Messages";
+import Groups from "./pages/Groups";
 import Academic from "./pages/Academic";
 import Notifications from "./pages/Notifications";
 import Profile from "./pages/Profile";
@@ -39,12 +46,18 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
+            <Route path="/features" element={<Features />} />
+            <Route path="/universities" element={<Universities />} />
+            <Route path="/university/:slug" element={<UniversityDetail />} />
+            <Route path="/about" element={<About />} />
+            <Route path="/safety" element={<Safety />} />
 
             {/* Protected Routes with Dashboard Layout */}
             <Route
               element={
                 <ProtectedRoute>
                   <DashboardLayout />
+                  <AdPopup />
                 </ProtectedRoute>
               }
             >
@@ -54,6 +67,7 @@ const App = () => (
               <Route path="/hostel" element={<Hostel />} />
               <Route path="/marketplace" element={<Marketplace />} />
               <Route path="/messages" element={<Messages />} />
+              <Route path="/groups" element={<Groups />} />
               <Route path="/academic" element={<Academic />} />
               <Route path="/notifications" element={<Notifications />} />
               <Route path="/profile" element={<Profile />} />
