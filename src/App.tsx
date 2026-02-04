@@ -22,15 +22,22 @@ import Safety from "./pages/Safety";
 // Protected pages
 import Dashboard from "./pages/Dashboard";
 import Feed from "./pages/Feed";
+import TrendingPosts from "./pages/TrendingPosts";
 import Anonymous from "./pages/Anonymous";
 import Hostel from "./pages/Hostel";
+import HostelDetail from "./pages/HostelDetail";
+import CreateHostelListing from "./pages/CreateHostelListing";
+import CreateRoommateRequest from "./pages/CreateRoommateRequest";
 import Marketplace from "./pages/Marketplace";
 import Messages from "./pages/Messages";
 import Groups from "./pages/Groups";
 import Academic from "./pages/Academic";
 import Notifications from "./pages/Notifications";
 import Profile from "./pages/Profile";
+import EditProfile from "./pages/EditProfile";
+import ReputationInfo from "./pages/ReputationInfo";
 import Settings from "./pages/Settings";
+import AdminPanel from "./pages/AdminPanel";
 
 const queryClient = new QueryClient();
 
@@ -63,15 +70,22 @@ const App = () => (
             >
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/feed" element={<Feed />} />
+              <Route path="/trending/:hashtag" element={<TrendingPosts />} />
               <Route path="/anonymous" element={<Anonymous />} />
               <Route path="/hostel" element={<Hostel />} />
+              <Route path="/hostel/:id" element={<HostelDetail />} />
+              <Route path="/hostel/create" element={<CreateHostelListing />} />
+              <Route path="/hostel/roommate" element={<CreateRoommateRequest />} />
               <Route path="/marketplace" element={<Marketplace />} />
               <Route path="/messages" element={<Messages />} />
               <Route path="/groups" element={<Groups />} />
               <Route path="/academic" element={<Academic />} />
               <Route path="/notifications" element={<Notifications />} />
               <Route path="/profile" element={<Profile />} />
+              <Route path="/profile/edit" element={<EditProfile />} />
+              <Route path="/reputation" element={<ReputationInfo />} />
               <Route path="/settings" element={<Settings />} />
+              <Route path="/admin" element={<AdminPanel />} />
             </Route>
 
             {/* Catch-all */}

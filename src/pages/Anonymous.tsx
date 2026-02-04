@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -12,14 +12,10 @@ import {
   Shuffle,
   AlertTriangle,
 } from "lucide-react";
-
-const anonymousNames = [
-  "Anonymous Eagle 🦅",
-  "Silent Phoenix 🔥",
-  "Mystery Owl 🦉",
-  "Hidden Tiger 🐯",
-  "Secret Panda 🐼",
-];
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import AnonymousNameModal from "@/components/anonymous/AnonymousNameModal";
+import { toast } from "sonner";
 
 const mockConfessions = [
   {
@@ -52,11 +48,101 @@ const mockConfessions = [
 ];
 
 const Anonymous = () => {
+  const { user } = useAuth();
   const [newPost, setNewPost] = useState("");
-  const [anonName] = useState(anonymousNames[Math.floor(Math.random() * anonymousNames.length)]);
+  const [anonymousName, setAnonymousName] = useState<string | null>(null);
+  const [showNameModal, setShowNameModal] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isPosting, setIsPosting] = useState(false);
+  const [posts, setPosts] = useState(mockConfessions);
+
+  useEffect(() => {
+    const checkAnonymousName = async () => {
+      if (!user) return;
+
+      const { data, error } = await supabase
+        .from("anonymous_names")
+        .select("anonymous_name")
+        .eq("user_id", user.id)
+        .single();
+
+      if (data) {
+        setAnonymousName(data.anonymous_name);
+      } else {
+        setShowNameModal(true);
+      }
+      setIsLoading(false);
+    };
+
+    checkAnonymousName();
+  }, [user]);
+
+  const handleNameSelected = (name: string) => {
+    setAnonymousName(name);
+    setShowNameModal(false);
+  };
+
+  const handlePost = async () => {
+    if (!newPost.trim() || !user || !anonymousName) return;
+
+    setIsPosting(true);
+    try {
+      const { error } = await supabase.from("anonymous_posts").insert({
+        user_id: user.id,
+        anonymous_name: anonymousName,
+        content: newPost.trim(),
+        category: "confession",
+      });
+
+      if (error) throw error;
+
+      // Add to local state
+      setPosts([
+        {
+          id: Date.now(),
+          name: anonymousName,
+          content: newPost.trim(),
+          likes: 0,
+          comments: 0,
+          time: "Just now",
+          category: "confession",
+        },
+        ...posts,
+      ]);
+
+      toast.success("Posted anonymously!");
+      setNewPost("");
+    } catch (error) {
+      console.error("Error posting:", error);
+      toast.error("Failed to post. Please try again.");
+    } finally {
+      setIsPosting(false);
+    }
+  };
+
+  const handleLike = (postId: number) => {
+    setPosts(posts.map(post => 
+      post.id === postId 
+        ? { ...post, likes: post.likes + 1 }
+        : post
+    ));
+  };
+
+  if (isLoading) {
+    return (
+      <div className="max-w-2xl mx-auto flex items-center justify-center h-64">
+        <div className="animate-pulse text-muted-foreground">Loading...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
+      <AnonymousNameModal 
+        open={showNameModal} 
+        onClose={handleNameSelected} 
+      />
+
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl module-anonymous border flex items-center justify-center">
@@ -86,7 +172,7 @@ const Anonymous = () => {
           <div className="flex items-center gap-2 mb-3">
             <Badge className="gradient-anonymous text-white">
               <Shuffle className="w-3 h-3 mr-1" />
-              Posting as: {anonName}
+              Posting as: {anonymousName || "..."}
             </Badge>
           </div>
           <Textarea
@@ -99,9 +185,14 @@ const Anonymous = () => {
             <p className="text-xs text-muted-foreground">
               Your identity is completely hidden
             </p>
-            <Button variant="anonymous" size="sm" disabled={!newPost.trim()}>
+            <Button 
+              variant="anonymous" 
+              size="sm" 
+              disabled={!newPost.trim() || isPosting}
+              onClick={handlePost}
+            >
               <Send className="w-4 h-4" />
-              Post Anonymously
+              {isPosting ? "Posting..." : "Post Anonymously"}
             </Button>
           </div>
         </CardContent>
@@ -109,7 +200,7 @@ const Anonymous = () => {
 
       {/* Anonymous Posts */}
       <div className="space-y-4">
-        {mockConfessions.map((post) => (
+        {posts.map((post) => (
           <Card key={post.id} className="glass-card hover:border-[hsl(var(--anonymous))]/30 transition-colors">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
@@ -131,7 +222,12 @@ const Anonymous = () => {
               <p className="text-sm leading-relaxed">{post.content}</p>
               <div className="flex items-center justify-between mt-4 pt-4 border-t border-border/50">
                 <div className="flex gap-1">
-                  <Button variant="ghost" size="sm" className="gap-1 text-muted-foreground hover:text-[hsl(var(--anonymous))]">
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className="gap-1 text-muted-foreground hover:text-[hsl(var(--anonymous))]"
+                    onClick={() => handleLike(post.id)}
+                  >
                     <Heart className="w-4 h-4" />
                     {post.likes}
                   </Button>

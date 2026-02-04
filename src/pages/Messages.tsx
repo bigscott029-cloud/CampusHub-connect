@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,8 +18,29 @@ import {
   Users,
   Plus,
 } from "lucide-react";
+import StoriesCarousel from "@/components/messages/StoriesCarousel";
+import { toast } from "sonner";
 
-const mockConversations = [
+interface Conversation {
+  id: number;
+  name: string;
+  type: "group" | "dm";
+  lastMessage: string;
+  time: string;
+  unread: number;
+  members?: number;
+  online?: boolean;
+}
+
+interface Message {
+  id: number;
+  sender: string;
+  content: string;
+  time: string;
+  isMine: boolean;
+}
+
+const initialConversations: Conversation[] = [
   {
     id: 1,
     name: "Study Group - CSC 301",
@@ -57,7 +79,7 @@ const mockConversations = [
   },
 ];
 
-const mockMessages = [
+const initialMessages: Message[] = [
   { id: 1, sender: "Jane Doe", content: "Hey! Did you get the assignment details?", time: "2:30 PM", isMine: false },
   { id: 2, sender: "You", content: "Yes! It's due next Friday", time: "2:31 PM", isMine: true },
   { id: 3, sender: "Jane Doe", content: "Great, can you share the requirements?", time: "2:32 PM", isMine: false },
@@ -66,16 +88,93 @@ const mockMessages = [
 ];
 
 const Messages = () => {
-  const [selectedChat, setSelectedChat] = useState<number | null>(1);
+  const [searchParams] = useSearchParams();
+  const [selectedChat, setSelectedChat] = useState<number | null>(null);
   const [newMessage, setNewMessage] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [conversations, setConversations] = useState<Conversation[]>(initialConversations);
+  const [messages, setMessages] = useState<Message[]>(initialMessages);
 
-  const selectedConversation = mockConversations.find((c) => c.id === selectedChat);
+  // Handle pre-filled message from other pages
+  useEffect(() => {
+    const to = searchParams.get("to");
+    const message = searchParams.get("message");
+    const ref = searchParams.get("ref");
+
+    if (to) {
+      // Find or create conversation
+      const existingConv = conversations.find(c => c.name === to);
+      if (existingConv) {
+        setSelectedChat(existingConv.id);
+      } else {
+        // Create new conversation
+        const newConv: Conversation = {
+          id: Date.now(),
+          name: to,
+          type: "dm",
+          lastMessage: "",
+          time: "Now",
+          unread: 0,
+          online: false,
+        };
+        setConversations([newConv, ...conversations]);
+        setSelectedChat(newConv.id);
+      }
+
+      if (message) {
+        setNewMessage(message);
+      }
+    }
+  }, [searchParams]);
+
+  const selectedConversation = conversations.find((c) => c.id === selectedChat);
+
+  const handleSelectChat = (chatId: number) => {
+    setSelectedChat(chatId);
+    // Mark as read
+    setConversations(conversations.map(conv => 
+      conv.id === chatId ? { ...conv, unread: 0 } : conv
+    ));
+  };
+
+  const handleSendMessage = () => {
+    if (!newMessage.trim() || !selectedChat) return;
+
+    const newMsg: Message = {
+      id: Date.now(),
+      sender: "You",
+      content: newMessage.trim(),
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      isMine: true,
+    };
+
+    setMessages([...messages, newMsg]);
+    
+    // Update conversation with last message
+    setConversations(conversations.map(conv => 
+      conv.id === selectedChat 
+        ? { ...conv, lastMessage: newMessage.trim(), time: "Just now" }
+        : conv
+    ));
+
+    setNewMessage("");
+    toast.success("Message sent!");
+  };
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSendMessage();
+    }
+  };
 
   return (
     <div className="h-[calc(100vh-8rem)] flex gap-4">
       {/* Conversations List */}
       <Card className="glass-card w-80 shrink-0 flex flex-col">
+        {/* Stories Carousel */}
+        <StoriesCarousel />
+
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <h2 className="font-display font-semibold">Messages</h2>
@@ -95,10 +194,12 @@ const Messages = () => {
         </CardHeader>
         <ScrollArea className="flex-1">
           <div className="px-2">
-            {mockConversations.map((conv) => (
+            {conversations
+              .filter(conv => conv.name.toLowerCase().includes(searchQuery.toLowerCase()))
+              .map((conv) => (
               <button
                 key={conv.id}
-                onClick={() => setSelectedChat(conv.id)}
+                onClick={() => handleSelectChat(conv.id)}
                 className={`w-full p-3 rounded-lg flex items-center gap-3 hover:bg-muted/50 transition-colors ${
                   selectedChat === conv.id ? "bg-muted" : ""
                 }`}
@@ -176,7 +277,7 @@ const Messages = () => {
             {/* Messages */}
             <ScrollArea className="flex-1 p-4">
               <div className="space-y-4">
-                {mockMessages.map((msg) => (
+                {messages.map((msg) => (
                   <div
                     key={msg.id}
                     className={`flex ${msg.isMine ? "justify-end" : "justify-start"}`}
@@ -212,12 +313,18 @@ const Messages = () => {
                   placeholder="Type a message..."
                   value={newMessage}
                   onChange={(e) => setNewMessage(e.target.value)}
+                  onKeyDown={handleKeyPress}
                   className="flex-1"
                 />
                 <Button variant="ghost" size="icon">
                   <Smile className="w-5 h-5" />
                 </Button>
-                <Button variant="hero" size="icon" disabled={!newMessage.trim()}>
+                <Button 
+                  variant="hero" 
+                  size="icon" 
+                  disabled={!newMessage.trim()}
+                  onClick={handleSendMessage}
+                >
                   <Send className="w-4 h-4" />
                 </Button>
               </div>
