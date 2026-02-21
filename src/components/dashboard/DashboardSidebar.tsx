@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import campusHubLogo from "@/assets/campus-hub-logo.png";
 import {
   Sidebar,
   SidebarContent,
@@ -31,6 +32,7 @@ import {
   Bell,
   Search,
   User,
+  Shield,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -48,6 +50,7 @@ const secondaryNavItems = [
   { title: "Notifications", url: "/notifications", icon: Bell },
   { title: "Profile", url: "/profile", icon: User },
   { title: "Settings", url: "/settings", icon: Settings },
+  { title: "Admin Panel", url: "/admin", icon: Shield },
 ];
 
 const DashboardSidebar = () => {
@@ -63,12 +66,10 @@ const DashboardSidebar = () => {
       <SidebarHeader className="p-4">
         <div className="flex items-center justify-between">
           <div className={cn("flex items-center gap-2", isCollapsed && "justify-center")}>
-            <div className="w-9 h-9 rounded-xl gradient-bg flex items-center justify-center shrink-0">
-              <span className="text-primary-foreground font-bold text-lg">B</span>
-            </div>
+            <img src={campusHubLogo} alt="Campus Hub" className="w-9 h-9 rounded-xl shrink-0 object-cover" />
             {!isCollapsed && (
               <span className="font-display font-bold text-lg">
-                Big<span className="text-primary">Scott</span>
+                Campus<span className="text-primary">Hub</span>
               </span>
             )}
           </div>
@@ -84,7 +85,6 @@ const DashboardSidebar = () => {
       </SidebarHeader>
 
       <SidebarContent className="px-2">
-        {/* Search */}
         {!isCollapsed && (
           <div className="px-2 mb-4">
             <div className="relative">
@@ -106,11 +106,7 @@ const DashboardSidebar = () => {
             <SidebarMenu>
               {mainNavItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={isActive(item.url)}
-                    tooltip={item.title}
-                  >
+                  <SidebarMenuButton asChild isActive={isActive(item.url)} tooltip={item.title}>
                     <NavLink to={item.url} className="flex items-center gap-3">
                       <item.icon className="w-5 h-5" />
                       {!isCollapsed && <span>{item.title}</span>}
@@ -130,11 +126,7 @@ const DashboardSidebar = () => {
             <SidebarMenu>
               {secondaryNavItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={isActive(item.url)}
-                    tooltip={item.title}
-                  >
+                  <SidebarMenuButton asChild isActive={isActive(item.url)} tooltip={item.title}>
                     <NavLink to={item.url} className="flex items-center gap-3">
                       <item.icon className="w-5 h-5" />
                       {!isCollapsed && <span>{item.title}</span>}
@@ -163,23 +155,12 @@ const DashboardSidebar = () => {
               <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
             </div>
           )}
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={signOut}
-            className={cn("shrink-0", isCollapsed && "hidden")}
-            title="Sign out"
-          >
+          <Button variant="ghost" size="icon" onClick={signOut} className={cn("shrink-0", isCollapsed && "hidden")} title="Sign out">
             <LogOut className="w-4 h-4" />
           </Button>
         </div>
         {isCollapsed && (
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={toggleSidebar}
-            className="mt-2 w-full"
-          >
+          <Button variant="ghost" size="icon" onClick={toggleSidebar} className="mt-2 w-full">
             <ChevronRight className="w-4 h-4" />
           </Button>
         )}
