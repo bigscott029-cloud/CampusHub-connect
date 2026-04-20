@@ -39,11 +39,11 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
     setLoading(false);
   }, []);
 
-  const adminLogin = async (username: string, password: string) => {
+  const adminLogin = async (email: string, password: string) => {
     try {
       // Call the verify_admin_credentials function
       const { data, error } = await supabase.rpc("verify_admin_credentials", {
-        p_username: username,
+        p_email: email,
         p_password: password,
       });
 
@@ -57,11 +57,11 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
         localStorage.setItem(
           ADMIN_SESSION_KEY,
           JSON.stringify({
-            username,
+            email,
             timestamp: Date.now(),
           })
         );
-        setAdminUsername(username);
+        setAdminUsername(email);
         setIsAdminLoggedIn(true);
         return { success: true, message: "Login successful" };
       } else {

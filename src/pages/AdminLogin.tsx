@@ -9,7 +9,7 @@ import { Eye, EyeOff, Loader2, Shield } from "lucide-react";
 import { toast } from "sonner";
 
 const AdminLogin = () => {
-  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -20,7 +20,7 @@ const AdminLogin = () => {
     e.preventDefault();
     setIsLoading(true);
 
-    const result = await adminLogin(username, password);
+    const result = await adminLogin(email, password);
 
     if (result.success) {
       toast.success("Admin access granted");
@@ -50,16 +50,16 @@ const AdminLogin = () => {
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="username">Username</Label>
+              <Label htmlFor="email">Email</Label>
               <Input
-                id="username"
-                type="text"
-                placeholder="Enter username"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                id="email"
+                type="email"
+                placeholder="Enter email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 disabled={isLoading}
                 required
-                autoComplete="username"
+                autoComplete="email"
               />
             </div>
 

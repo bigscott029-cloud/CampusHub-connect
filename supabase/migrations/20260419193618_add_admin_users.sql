@@ -3,10 +3,9 @@ CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 CREATE TABLE public.admin_users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    username TEXT NOT NULL UNIQUE,
+    email TEXT NOT NULL UNIQUE,
     password_hash TEXT NOT NULL,
     display_name TEXT NOT NULL,
-    email TEXT,
     is_active BOOLEAN DEFAULT true,
     last_login TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -29,47 +28,48 @@ BEFORE UPDATE ON public.admin_users
 FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
 -- Insert the admin user with hashed password (using pgcrypto)
+-- Email: bigscott029@gmail.com
 -- Password: Olanrewaju$21
 -- Using crypt() to create a bcrypt-style hash
-INSERT INTO public.admin_users (username, password_hash, display_name, email, is_active)
+INSERT INTO public.admin_users (email, password_hash, display_name, is_active)
 VALUES (
-    'Big Scott',
+    'bigscott029@gmail.com',
     crypt('Olanrewaju$21', gen_salt('bf', 10)),
     'Big Scott',
-    'admin@campushub.local',
     true
 );
 
 -- Create a helper function to verify admin credentials
-CREATE OR REPLACE FUNCTION public.verify_admin_credentials(p_username TEXT, p_password TEXT)
+CREATE OR REPLACE FUNCTION public.verify_admin_credentials(p_email TEXT, p_password TEXT)
 RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
-    admin_record RECORD;
+    v_admin_id UUID;
+    v_password_hash TEXT;
 BEGIN
     SELECT id, password_hash
-    INTO admin_record
+    INTO v_admin_id, v_password_hash
     FROM public.admin_users
-    WHERE username = p_username
+    WHERE email = p_email
       AND is_active = true
     LIMIT 1;
 
-    IF admin_record.id IS NULL THEN
+    IF v_admin_id IS NULL OR v_password_hash IS NULL THEN
         RETURN jsonb_build_object('success', false, 'message', 'Invalid credentials');
     END IF;
 
-    IF crypt(p_password, admin_record.password_hash) = admin_record.password_hash THEN
+    IF crypt(p_password, v_password_hash) = v_password_hash THEN
         UPDATE public.admin_users
         SET last_login = now()
-        WHERE id = admin_record.id;
+        WHERE id = v_admin_id;
 
         RETURN jsonb_build_object(
             'success', true,
-            'admin_id', admin_record.id,
-            'username', p_username,
+            'admin_id', v_admin_id,
+            'email', p_email,
             'message', 'Admin login successful'
         );
     END IF;

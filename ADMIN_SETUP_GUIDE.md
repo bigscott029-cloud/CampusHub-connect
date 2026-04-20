@@ -4,7 +4,7 @@
 The admin panel has been successfully set up with secure authentication. All database tables are properly configured to sync across platforms with RLS (Row Level Security) policies.
 
 ## Admin Credentials
-- **Username**: `Big Scott`
+- **Email**: `bigscott029@gmail.com`
 - **Password**: `Olanrewaju$21`
 - **Access URL**: `http://localhost:5173/admin-login`
 
@@ -82,8 +82,9 @@ supabase db push
 After applying the migration, verify in the Supabase dashboard:
 1. Go to Database → Tables
 2. Select `public.admin_users`
-3. Confirm "Big Scott" user exists with:
-   - `username`: Big Scott
+3. Confirm "bigscott029@gmail.com" user exists with:
+   - `email`: bigscott029@gmail.com
+   - `display_name`: Big Scott
    - `is_active`: true
    - `password_hash`: (bcrypt hash)
 
@@ -91,7 +92,7 @@ After applying the migration, verify in the Supabase dashboard:
 1. Start the dev server: `bun dev` or `npm run dev`
 2. Navigate to `http://localhost:5173/admin-login`
 3. Enter credentials:
-   - Username: `Big Scott`
+   - Email: `bigscott029@gmail.com`
    - Password: `Olanrewaju$21`
 4. You should be redirected to `/admin` dashboard
 
@@ -145,10 +146,9 @@ npx supabase gen types typescript --project-ref aavbkzfrbexbuidejfoq > src/integ
 ### admin_users
 ```sql
 - id (UUID) - Primary key
-- username (TEXT) - Unique username (e.g., "Big Scott")
+- email (TEXT) - Unique email address (e.g., "bigscott029@gmail.com")
 - password_hash (TEXT) - Bcrypt hash
 - display_name (TEXT) - Full name
-- email (TEXT) - Contact email
 - is_active (BOOLEAN) - Account status
 - last_login (TIMESTAMPTZ) - Last login time
 - created_at (TIMESTAMPTZ) - Creation timestamp
@@ -221,7 +221,7 @@ supabase/
 | `/login` | None | Public | Everyone |
 | `/admin-login` | None | Public | Everyone |
 | `/dashboard` | Yes (User) | Protected | Authenticated users |
-| `/admin` | Yes (Admin) | Protected | "Big Scott" only |
+| `/admin` | Yes (Admin) | Protected | bigscott029@gmail.com only |
 | `/feed`, `/hostel`, etc. | Yes (User) | Protected | Authenticated users |
 
 ---
