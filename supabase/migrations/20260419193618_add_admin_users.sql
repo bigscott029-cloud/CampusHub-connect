@@ -27,18 +27,6 @@ CREATE TRIGGER update_admin_users_updated_at
 BEFORE UPDATE ON public.admin_users 
 FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
--- Insert the admin user with hashed password (using pgcrypto)
--- Email: bigscott029@gmail.com
--- Password: Olanrewaju$21
--- Using crypt() to create a bcrypt-style hash
-INSERT INTO public.admin_users (email, password_hash, display_name, is_active)
-VALUES (
-    'bigscott029@gmail.com',
-    crypt('Olanrewaju$21', gen_salt('bf', 10)),
-    'Big Scott',
-    true
-);
-
 -- Create a helper function to verify admin credentials
 CREATE OR REPLACE FUNCTION public.verify_admin_credentials(p_email TEXT, p_password TEXT)
 RETURNS JSONB

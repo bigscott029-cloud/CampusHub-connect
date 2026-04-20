@@ -16,35 +16,7 @@ interface Ad {
   category: string;
 }
 
-const mockAds: Ad[] = [
-  {
-    id: "1",
-    title: "MTN Campus Data Bundles",
-    description: "Get 10GB for just ₦1,500! Perfect for streaming and studying. Valid for 30 days.",
-    ctaText: "Get Offer",
-    ctaLink: "#",
-    sponsor: "MTN Nigeria",
-    category: "Tech",
-  },
-  {
-    id: "2",
-    title: "New Semester, New Style!",
-    description: "20% off all fashion items this week. Use code CAMPUS20 at checkout.",
-    ctaText: "Shop Now",
-    ctaLink: "#",
-    sponsor: "Campus Fashion Hub",
-    category: "Fashion",
-  },
-  {
-    id: "3",
-    title: "Affordable Laptop Repairs",
-    description: "Screen repairs from ₦15,000. Free diagnosis for all campus students!",
-    ctaText: "Book Repair",
-    ctaLink: "#",
-    sponsor: "TechFix Campus",
-    category: "Services",
-  },
-];
+const mockAds: Ad[] = [];
 
 const AdPopup = () => {
   const [isVisible, setIsVisible] = useState(false);

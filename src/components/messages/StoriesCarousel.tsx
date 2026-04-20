@@ -38,44 +38,7 @@ interface Story {
   expiresAt: Date;
 }
 
-const mockStories: Story[] = [
-  {
-    id: 1,
-    userId: "1",
-    userName: "Tunde A.",
-    avatar: "T",
-    content: { type: "text", text: "Just finished my exams! 🎉" },
-    viewed: false,
-    expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
-  },
-  {
-    id: 2,
-    userId: "2",
-    userName: "Amaka O.",
-    avatar: "A",
-    content: { type: "image", url: "/placeholder.svg" },
-    viewed: true,
-    expiresAt: new Date(Date.now() + 20 * 60 * 60 * 1000),
-  },
-  {
-    id: 3,
-    userId: "3",
-    userName: "John D.",
-    avatar: "J",
-    content: { type: "text", text: "Study group meeting at 4PM! Who's coming?" },
-    viewed: false,
-    expiresAt: new Date(Date.now() + 18 * 60 * 60 * 1000),
-  },
-  {
-    id: 4,
-    userId: "4",
-    userName: "Jane S.",
-    avatar: "J",
-    content: { type: "image", url: "/placeholder.svg" },
-    viewed: true,
-    expiresAt: new Date(Date.now() + 12 * 60 * 60 * 1000),
-  },
-];
+const mockStories: Story[] = [];
 
 interface StoriesCarouselProps {
   onCreateStory?: () => void;

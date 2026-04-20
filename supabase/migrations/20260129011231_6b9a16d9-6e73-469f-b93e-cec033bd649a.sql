@@ -134,7 +134,3 @@ CREATE TRIGGER update_profiles_updated_at
 CREATE TRIGGER update_universities_updated_at
     BEFORE UPDATE ON public.universities
     FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
-
--- Insert a default university
-INSERT INTO public.universities (name, slug, location, email_domain)
-VALUES ('Demo University', 'demo-university', 'Lagos, Nigeria', 'demo.edu.ng');

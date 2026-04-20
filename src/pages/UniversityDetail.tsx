@@ -31,16 +31,12 @@ const universityData: Record<string, any> = {
     founded: 1990,
     departments: ["Computer Science", "Engineering", "Business", "Arts", "Medicine"],
     features: {
-      gists: { count: "12K", trending: ["Exam timetables released!", "New cafeteria opening"] },
-      marketplace: { listings: 890, categories: ["Textbooks", "Electronics", "Fashion"] },
-      hostels: { listings: 156, avgPrice: "₦350K/year" },
-      groups: { count: 45, popular: ["CS 2024", "Medical Students", "Tech Hub"] },
+      gists: { count: "0", trending: [] },
+      marketplace: { listings: 0, categories: [] },
+      hostels: { listings: 0, avgPrice: "₦0/year" },
+      groups: { count: 0, popular: [] },
     },
-    topPosts: [
-      { title: "Library hours extended for exam period", likes: 234 },
-      { title: "SUG elections coming up next week", likes: 189 },
-      { title: "New parking rules announced", likes: 145 },
-    ],
+    topPosts: [],
     color: "from-primary to-hostel",
   },
   unilag: {
@@ -51,16 +47,12 @@ const universityData: Record<string, any> = {
     founded: 1962,
     departments: ["Engineering", "Law", "Medicine", "Sciences", "Social Sciences", "Arts"],
     features: {
-      gists: { count: "89K", trending: ["ASUU update", "Convocation ceremony"] },
-      marketplace: { listings: 3200, categories: ["Books", "Gadgets", "Clothing", "Food"] },
-      hostels: { listings: 456, avgPrice: "₦450K/year" },
-      groups: { count: 234, popular: ["Unilag Connect", "Law Students", "Engineering Hub"] },
+      gists: { count: "0", trending: [] },
+      marketplace: { listings: 0, categories: [] },
+      hostels: { listings: 0, avgPrice: "₦0/year" },
+      groups: { count: 0, popular: [] },
     },
-    topPosts: [
-      { title: "New library building inauguration", likes: 567 },
-      { title: "Football team wins intervarsity", likes: 445 },
-      { title: "Free WiFi zones expanded", likes: 389 },
-    ],
+    topPosts: [],
     color: "from-hostel to-primary",
   },
 };

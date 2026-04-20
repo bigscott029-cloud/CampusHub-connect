@@ -29,67 +29,12 @@ import {
   Video,
 } from "lucide-react";
 
-const mockGroups = [
-  {
-    id: 1,
-    name: "CSC 401 - Database Systems",
-    type: "course",
-    members: 156,
-    unread: 23,
-    lastMessage: "Has anyone finished the ER diagram?",
-    lastSender: "Tunde A.",
-    time: "2 min",
-    pinned: true,
-    isPrivate: false,
-  },
-  {
-    id: 2,
-    name: "Final Year Project Squad",
-    type: "study",
-    members: 12,
-    unread: 5,
-    lastMessage: "Meeting tomorrow at 2pm?",
-    lastSender: "Amaka O.",
-    time: "15 min",
-    pinned: true,
-    isPrivate: true,
-  },
-  {
-    id: 3,
-    name: "Hostel 5 Residents",
-    type: "community",
-    members: 234,
-    unread: 0,
-    lastMessage: "Light's back!",
-    lastSender: "John D.",
-    time: "1 hr",
-    pinned: false,
-    isPrivate: false,
-  },
-  {
-    id: 4,
-    name: "Tech Enthusiasts",
-    type: "interest",
-    members: 89,
-    unread: 8,
-    lastMessage: "Check out this new AI tool",
-    lastSender: "David K.",
-    time: "3 hrs",
-    pinned: false,
-    isPrivate: false,
-  },
-];
+const mockGroups = [];
 
-const mockMessages = [
-  { id: 1, sender: "Tunde A.", content: "Hey everyone! Has anyone started the assignment?", time: "10:30 AM", isMe: false },
-  { id: 2, sender: "You", content: "Not yet, planning to start tonight", time: "10:32 AM", isMe: true },
-  { id: 3, sender: "Amaka O.", content: "I've done the first two questions. It's actually easier than expected", time: "10:35 AM", isMe: false },
-  { id: 4, sender: "David K.", content: "Can someone share the question paper? I lost mine 😅", time: "10:40 AM", isMe: false },
-  { id: 5, sender: "You", content: "I'll upload it in a sec", time: "10:41 AM", isMe: true },
-];
+const mockMessages = [];
 
 const Groups = () => {
-  const [selectedGroup, setSelectedGroup] = useState(mockGroups[0]);
+  const [selectedGroup, setSelectedGroup] = useState(null);
   const [message, setMessage] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -185,12 +130,12 @@ const Groups = () => {
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <h3 className="font-semibold">{selectedGroup?.name}</h3>
-                  {selectedGroup?.isPrivate && <Lock className="w-3 h-3 text-muted-foreground" />}
+                  <h3 className="font-semibold">{selectedGroup.name}</h3>
+                  {selectedGroup.isPrivate && <Lock className="w-3 h-3 text-muted-foreground" />}
                 </div>
                 <p className="text-xs text-muted-foreground flex items-center gap-1">
                   <Users className="w-3 h-3" />
-                  {selectedGroup?.members} members
+                  {selectedGroup.members} members
                 </p>
               </div>
             </div>

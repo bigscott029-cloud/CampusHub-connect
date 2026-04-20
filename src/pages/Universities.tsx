@@ -32,7 +32,7 @@ const universities = [
     verified: true,
     features: ["Active marketplace", "Strong community", "24/7 support"],
     color: "from-primary to-hostel",
-    stats: { gists: "12K", listings: "890", groups: "156" },
+    stats: { gists: "0", listings: "0", groups: "0" },
   },
   {
     id: "unilag",
@@ -46,7 +46,7 @@ const universities = [
     verified: true,
     features: ["Most active", "Top marketplace", "Study groups"],
     color: "from-hostel to-primary",
-    stats: { gists: "89K", listings: "3.2K", groups: "456" },
+    stats: { gists: "0", listings: "0", groups: "0" },
   },
   {
     id: "oau",
@@ -60,7 +60,7 @@ const universities = [
     verified: true,
     features: ["Beautiful campus", "Active forums", "Events hub"],
     color: "from-academic to-anonymous",
-    stats: { gists: "45K", listings: "1.8K", groups: "234" },
+    stats: { gists: "0", listings: "0", groups: "0" },
   },
   {
     id: "ui",
@@ -74,7 +74,7 @@ const universities = [
     verified: true,
     features: ["Research hub", "Alumni network", "Career support"],
     color: "from-marketplace to-success",
-    stats: { gists: "67K", listings: "2.5K", groups: "345" },
+    stats: { gists: "0", listings: "0", groups: "0" },
   },
   {
     id: "unn",
@@ -88,7 +88,7 @@ const universities = [
     verified: true,
     features: ["Cultural events", "Sports hub", "Innovation center"],
     color: "from-accent to-warning",
-    stats: { gists: "52K", listings: "2.1K", groups: "289" },
+    stats: { gists: "0", listings: "0", groups: "0" },
   },
   {
     id: "abu",
