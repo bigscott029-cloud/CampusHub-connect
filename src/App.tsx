@@ -4,7 +4,9 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
+import { AdminProvider } from "@/hooks/useAdminAuth";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import AdminProtectedRoute from "@/components/AdminProtectedRoute";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import AdPopup from "@/components/ads/AdPopup";
 
@@ -12,6 +14,7 @@ import AdPopup from "@/components/ads/AdPopup";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
+import AdminLogin from "./pages/AdminLogin";
 import NotFound from "./pages/NotFound";
 import Features from "./pages/Features";
 import Universities from "./pages/Universities";
@@ -44,15 +47,17 @@ const queryClient = new QueryClient();
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
+      <AdminProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
           <Routes>
             {/* Public Routes */}
             <Route path="/" element={<Index />} />
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
+            <Route path="/admin-login" element={<AdminLogin />} />
             <Route path="/features" element={<Features />} />
             <Route path="/universities" element={<Universities />} />
             <Route path="/university/:slug" element={<UniversityDetail />} />
@@ -85,14 +90,24 @@ const App = () => (
               <Route path="/profile/edit" element={<EditProfile />} />
               <Route path="/reputation" element={<ReputationInfo />} />
               <Route path="/settings" element={<Settings />} />
-              <Route path="/admin" element={<AdminPanel />} />
             </Route>
+
+            {/* Admin Protected Routes */}
+            <Route
+              path="/admin"
+              element={
+                <AdminProtectedRoute>
+                  <AdminPanel />
+                </AdminProtectedRoute>
+              }
+            />
 
             {/* Catch-all */}
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
-      </TooltipProvider>
+        </TooltipProvider>
+      </AdminProvider>
     </AuthProvider>
   </QueryClientProvider>
 );
