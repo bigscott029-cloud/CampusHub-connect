@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { getProfileWithUniversity } from "@/lib/campus";
 import { toast } from "sonner";
 
 const amenitiesList = [
@@ -48,6 +49,7 @@ const CreateHostelListing = () => {
   const [submitted, setSubmitted] = useState(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const [imageUrlInput, setImageUrlInput] = useState("");
+  const [imageFiles, setImageFiles] = useState<File[]>([]);
 
   const [formData, setFormData] = useState({
     title: "", description: "", price: "", pricePeriod: "yearly", location: "", hostelType: "", phoneNumber: "",
@@ -66,20 +68,33 @@ const CreateHostelListing = () => {
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files) return;
-    Array.from(files).forEach(file => {
-      if (formData.imageUrls.length >= 6) return;
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        setFormData(prev => ({ ...prev, imageUrls: [...prev.imageUrls, ev.target?.result as string].slice(0, 6) }));
-      };
-      reader.readAsDataURL(file);
-    });
+    const files = Array.from(e.target.files ?? []);
+    setImageFiles((current) => [...current, ...files].slice(0, 6));
   };
 
   const removeImageUrl = (index: number) => {
     setFormData(prev => ({ ...prev, imageUrls: prev.imageUrls.filter((_, i) => i !== index) }));
+  };
+
+  const uploadImages = async () => {
+    if (!user) return [];
+    const urls: string[] = [];
+
+    for (const file of imageFiles.slice(0, 6)) {
+      const cleanName = file.name.replace(/[^a-zA-Z0-9.]+/g, "-").toLowerCase();
+      const path = `${user.id}/hostels/${crypto.randomUUID()}-${cleanName}`;
+      const { error } = await supabase.storage.from("listing-media").upload(path, file, {
+        cacheControl: "3600",
+        upsert: false,
+      });
+
+      if (error) throw error;
+
+      const { data } = supabase.storage.from("listing-media").getPublicUrl(path);
+      urls.push(data.publicUrl);
+    }
+
+    return urls;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -90,17 +105,19 @@ const CreateHostelListing = () => {
     }
     setIsSubmitting(true);
     try {
-      const httpImages = formData.imageUrls.filter(img => img.startsWith("http"));
-      const { error } = await supabase.from("hostel_listings").insert({
+      const { profile } = await getProfileWithUniversity(user.id);
+      const uploadedImages = await uploadImages();
+      const httpImages = [...formData.imageUrls.filter(img => img.startsWith("http")), ...uploadedImages];
+      const { data: listing, error } = await supabase.from("hostel_listings").insert({
         user_id: user.id, title: formData.title, description: formData.description,
         price: parseFloat(formData.price), price_period: formData.pricePeriod,
         location: formData.location, hostel_type: formData.hostelType,
         phone_number: formData.phoneNumber, amenities: formData.amenities,
-        images: httpImages, status: "pending",
-      });
+        images: httpImages, status: "pending", university_id: profile?.university_id ?? null,
+      }).select("id").single();
       if (error) throw error;
-      await supabase.from("admin_requests").insert({ user_id: user.id, request_type: "hostel_listing", status: "pending" });
-      await supabase.from("notifications").insert({ user_id: user.id, title: "Listing Submitted", description: "Your hostel listing is being reviewed by an admin.", type: "listing", is_important: true });
+      await supabase.from("admin_requests").insert({ user_id: user.id, request_type: "hostel_listing", reference_id: listing.id, status: "pending" });
+      await supabase.from("notifications").insert({ user_id: user.id, title: "Listing Submitted", description: "Your hostel listing is being reviewed by an admin.", type: "listing", is_important: true, reference_type: "hostel_listing", reference_id: listing.id });
       setSubmitted(true);
     } catch (error) {
       console.error("Error creating listing:", error);
@@ -177,8 +194,8 @@ const CreateHostelListing = () => {
             <Tabs defaultValue="device">
               <TabsList className="w-full"><TabsTrigger value="device" className="flex-1"><Upload className="w-4 h-4 mr-1" />From Device</TabsTrigger><TabsTrigger value="url" className="flex-1"><Link2 className="w-4 h-4 mr-1" />Image URL</TabsTrigger></TabsList>
               <TabsContent value="device" className="pt-4">
-                <input ref={imageInputRef} type="file" accept="image/*,video/*" multiple className="hidden" onChange={handleFileUpload} />
-                <Button type="button" variant="outline" className="w-full" onClick={() => imageInputRef.current?.click()}><Upload className="w-4 h-4 mr-2" />Choose Images & Videos</Button>
+                <input ref={imageInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleFileUpload} />
+                <Button type="button" variant="outline" className="w-full" onClick={() => imageInputRef.current?.click()}><Upload className="w-4 h-4 mr-2" />Choose Images</Button>
               </TabsContent>
               <TabsContent value="url" className="pt-4">
                 <div className="flex gap-2"><Input placeholder="Paste image URL..." value={imageUrlInput} onChange={(e) => setImageUrlInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addImageUrl())} /><Button type="button" variant="outline" onClick={addImageUrl}><Plus className="w-4 h-4" /></Button></div>
@@ -189,7 +206,12 @@ const CreateHostelListing = () => {
                 <div key={i} className="relative group"><img src={url} alt="" className="w-20 h-20 object-cover rounded" /><Button type="button" variant="destructive" size="icon" className="absolute -top-2 -right-2 h-5 w-5 opacity-0 group-hover:opacity-100" onClick={() => removeImageUrl(i)}><X className="h-3 w-3" /></Button></div>
               ))}</div>
             )}
-            <p className="text-xs text-muted-foreground">{formData.imageUrls.length}/6 added</p>
+            {imageFiles.length > 0 && (
+              <div className="flex gap-2 flex-wrap">{imageFiles.map((file, i) => (
+                <div key={`${file.name}-${i}`} className="relative group"><img src={URL.createObjectURL(file)} alt="" className="w-20 h-20 object-cover rounded" /><Button type="button" variant="destructive" size="icon" className="absolute -top-2 -right-2 h-5 w-5 opacity-0 group-hover:opacity-100" onClick={() => setImageFiles((current) => current.filter((_, index) => index !== i))}><X className="h-3 w-3" /></Button></div>
+              ))}</div>
+            )}
+            <p className="text-xs text-muted-foreground">{formData.imageUrls.length + imageFiles.length}/6 added</p>
           </CardContent>
         </Card>
 

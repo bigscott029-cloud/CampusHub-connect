@@ -13,7 +13,7 @@ This project is built with:
 1. Clone the repository
 2. Install dependencies: `npm install` or `bun install`
 3. Copy `.env.example` to `.env` and fill in your Supabase credentials
-4. For production deployments (like Render), configure the database connection pooler URL
+4. Apply the Supabase migrations in `supabase/migrations`
 
 ### Environment Variables
 
@@ -22,17 +22,12 @@ Copy `.env.example` to `.env` and update the values:
 - `VITE_SUPABASE_PROJECT_ID`: Your Supabase project ID
 - `VITE_SUPABASE_PUBLISHABLE_KEY`: Your Supabase publishable key
 - `VITE_SUPABASE_URL`: Your Supabase project URL
-- `VITE_SUPABASE_DB_URL`: Database connection pooler URL (for production deployments)
 
-### Database Connection Pooler
+Do not add database connection strings, Supabase service-role keys, Stripe secret keys, PayPal secrets, or webhook signing secrets to `VITE_` variables. Anything prefixed with `VITE_` is bundled into the browser. Keep server-only secrets in Supabase Edge Function secrets or your backend host environment.
 
-For deployments on platforms like Render, use the transaction pooler URL to avoid connection limits:
+### Payments
 
-```
-VITE_SUPABASE_DB_URL="postgresql://postgres.[project-id]:[password]@aws-0-[region].pooler.supabase.com:6543/postgres"
-```
-
-You can find your pooler URL in your Supabase dashboard under Settings > Database > Connection Pooling.
+Payment rows are stored in Supabase, but checkout/session creation should happen in server-side Supabase Edge Functions or another backend. The frontend should only receive publishable keys and checkout URLs.
 
 ## Development
 

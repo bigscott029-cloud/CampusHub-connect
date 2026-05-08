@@ -25,6 +25,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { getProfileWithUniversity } from "@/lib/campus";
 import { toast } from "sonner";
 
 interface PostComposerProps {
@@ -96,8 +97,11 @@ const PostComposer = ({ onPostCreated }: PostComposerProps) => {
 
     setIsPosting(true);
     try {
+      const { profile } = await getProfileWithUniversity(user.id);
+
       const { error } = await supabase.from("posts").insert({
         user_id: user.id,
+        university_id: profile?.university_id ?? null,
         content: content.trim(),
         images: images.filter((img) => img.startsWith("http")),
         video_url: videoUrl || null,

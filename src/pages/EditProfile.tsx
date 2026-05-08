@@ -1,5 +1,15 @@
-import { useState, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import {
+  AlertTriangle,
+  ArrowLeft,
+  Camera,
+  User,
+} from "lucide-react";
+
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,71 +33,134 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { ArrowLeft, User, Camera, AlertTriangle, Upload } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/useAuth";
-import { toast } from "sonner";
-import { useEffect } from "react";
 
 const departments = ["Computer Science", "Medicine", "Engineering", "Law", "Business Administration", "Mass Communication", "Accounting", "Economics", "Other"];
 const levels = ["100L", "200L", "300L", "400L", "500L", "600L", "Postgraduate"];
+
+interface UniversityOption {
+  id: string;
+  name: string;
+}
 
 const EditProfile = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
+  const [isBootstrapping, setIsBootstrapping] = useState(true);
   const [universityChangeWarning, setUniversityChangeWarning] = useState(false);
   const [universityChangeCount, setUniversityChangeCount] = useState(0);
+  const [initialUniversityId, setInitialUniversityId] = useState("");
+  const [universities, setUniversities] = useState<UniversityOption[]>([]);
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
-  const [formData, setFormData] = useState({ displayName: "", bio: "", avatarUrl: "", department: "", level: "", universityId: "" });
+  const [formData, setFormData] = useState({
+    displayName: "",
+    bio: "",
+    avatarUrl: "",
+    department: "",
+    level: "",
+    universityId: "",
+  });
 
   useEffect(() => {
     const loadProfile = async () => {
       if (!user) return;
-      const { data } = await supabase.from("profiles").select("*").eq("user_id", user.id).single();
-      if (data) {
-        setFormData({ displayName: data.display_name || "", bio: data.bio || "", avatarUrl: data.avatar_url || "", department: data.department || "", level: data.level || "", universityId: data.university_id || "" });
-        setUniversityChangeCount(data.university_change_count || 0);
+
+      setIsBootstrapping(true);
+
+      const [{ data: profile }, { data: universityOptions }] = await Promise.all([
+        supabase.from("profiles").select("*").eq("user_id", user.id).single(),
+        supabase.from("universities").select("id, name").order("name"),
+      ]);
+
+      if (profile) {
+        setFormData({
+          displayName: profile.display_name || "",
+          bio: profile.bio || "",
+          avatarUrl: profile.avatar_url || "",
+          department: profile.department || "",
+          level: profile.level || "",
+          universityId: profile.university_id || "",
+        });
+        setInitialUniversityId(profile.university_id || "");
+        setUniversityChangeCount(profile.university_change_count || 0);
       }
+
+      setUniversities(universityOptions || []);
+      setIsBootstrapping(false);
     };
+
     loadProfile();
   }, [user]);
 
-  const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const handleAvatarUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
     if (!file) return;
+
     const reader = new FileReader();
-    reader.onload = (ev) => { setFormData({ ...formData, avatarUrl: ev.target?.result as string }); };
+    reader.onload = (loadEvent) => {
+      setFormData((prev) => ({
+        ...prev,
+        avatarUrl: loadEvent.target?.result as string,
+      }));
+    };
     reader.readAsDataURL(file);
   };
 
-  const handleUniversityChange = () => {
-    if (universityChangeCount >= 2) {
-      toast.error("You've reached the maximum university changes. This requires admin verification.");
-      if (user) {
-        supabase.from("admin_requests").insert({ user_id: user.id, request_type: "university_verification", status: "pending" });
-        supabase.from("notifications").insert({ user_id: user.id, title: "Verification Required", description: "Your university change request requires admin verification.", type: "warning", is_important: true });
-      }
+  const handleUniversitySelect = (value: string) => {
+    if (initialUniversityId && value !== initialUniversityId && value !== formData.universityId) {
+      setUniversityChangeWarning(true);
+    }
+
+    setFormData((prev) => ({ ...prev, universityId: value }));
+  };
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!user) return;
+
+    const universityChanged = formData.universityId !== initialUniversityId;
+    const isTrackedUniversityChange = Boolean(initialUniversityId) && universityChanged;
+
+    if (isTrackedUniversityChange && universityChangeCount >= 2) {
+      toast.error("You have reached the university change limit. An admin request has been created.");
+      await supabase.from("admin_requests").insert({
+        user_id: user.id,
+        request_type: "university_verification",
+        status: "pending",
+      });
+      await supabase.from("notifications").insert({
+        user_id: user.id,
+        title: "University change needs review",
+        description: "An admin needs to verify additional university changes on your account.",
+        type: "warning",
+        is_important: true,
+      });
       return;
     }
-    setUniversityChangeWarning(true);
-  };
 
-  const confirmUniversityChange = () => {
-    setUniversityChangeWarning(false);
-    toast.info(`You have ${2 - universityChangeCount} university change(s) remaining.`);
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!user) return;
     setIsLoading(true);
     try {
-      const updateData: Record<string, any> = { display_name: formData.displayName, bio: formData.bio, department: formData.department, level: formData.level };
-      if (formData.avatarUrl.startsWith("http")) updateData.avatar_url = formData.avatarUrl;
-      const { error } = await supabase.from("profiles").update(updateData).eq("user_id", user.id);
+      const updateData: Record<string, string | number | null> = {
+        display_name: formData.displayName,
+        bio: formData.bio || null,
+        avatar_url: formData.avatarUrl || null,
+        department: formData.department || null,
+        level: formData.level || null,
+        university_id: formData.universityId || null,
+      };
+
+      if (isTrackedUniversityChange) {
+        updateData.university_change_count = universityChangeCount + 1;
+      }
+
+      const { error } = await supabase
+        .from("profiles")
+        .update(updateData)
+        .eq("user_id", user.id);
+
       if (error) throw error;
+
       toast.success("Profile updated successfully!");
       navigate("/profile");
     } catch (error) {
@@ -99,77 +172,188 @@ const EditProfile = () => {
   };
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
+    <div className="mx-auto max-w-2xl space-y-6">
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={() => navigate(-1)}><ArrowLeft className="w-5 h-5" /></Button>
+        <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
+          <ArrowLeft className="h-5 w-5" />
+        </Button>
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center"><User className="w-5 h-5 text-primary" /></div>
-          <div><h1 className="text-2xl font-display font-bold">Edit Profile</h1><p className="text-sm text-muted-foreground">Update your personal information</p></div>
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-primary/20 bg-primary/10">
+            <User className="h-5 w-5 text-primary" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-display font-bold">Edit Profile</h1>
+            <p className="text-sm text-muted-foreground">Update your personal information</p>
+          </div>
         </div>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Avatar */}
         <Card className="glass-card">
-          <CardHeader><CardTitle className="text-lg">Profile Picture</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle className="text-lg">Profile Picture</CardTitle>
+          </CardHeader>
           <CardContent>
             <div className="flex items-center gap-6">
               <div className="relative cursor-pointer" onClick={() => avatarInputRef.current?.click()}>
-                <Avatar className="w-24 h-24">
+                <Avatar className="h-24 w-24">
                   <AvatarImage src={formData.avatarUrl} />
-                  <AvatarFallback className="bg-primary/10 text-primary text-2xl">{formData.displayName?.charAt(0)?.toUpperCase() || "U"}</AvatarFallback>
+                  <AvatarFallback className="bg-primary/10 text-2xl text-primary">
+                    {formData.displayName?.charAt(0)?.toUpperCase() || "U"}
+                  </AvatarFallback>
                 </Avatar>
-                <div className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-primary flex items-center justify-center"><Camera className="w-4 h-4 text-primary-foreground" /></div>
-                <input ref={avatarInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} />
+                <div className="absolute -bottom-1 -right-1 flex h-8 w-8 items-center justify-center rounded-full bg-primary">
+                  <Camera className="h-4 w-4 text-primary-foreground" />
+                </div>
+                <input
+                  ref={avatarInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleAvatarUpload}
+                />
               </div>
               <div className="flex-1 space-y-2">
                 <p className="text-sm font-medium">Click avatar to upload from device</p>
                 <p className="text-xs text-muted-foreground">Or enter a URL below</p>
-                <Input placeholder="https://example.com/avatar.jpg" value={formData.avatarUrl.startsWith("data:") ? "" : formData.avatarUrl} onChange={(e) => setFormData({ ...formData, avatarUrl: e.target.value })} />
+                <Input
+                  placeholder="https://example.com/avatar.jpg"
+                  value={formData.avatarUrl.startsWith("data:") ? "" : formData.avatarUrl}
+                  onChange={(event) => setFormData((prev) => ({ ...prev, avatarUrl: event.target.value }))}
+                />
               </div>
             </div>
           </CardContent>
         </Card>
 
         <Card className="glass-card">
-          <CardHeader><CardTitle className="text-lg">Basic Information</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle className="text-lg">Basic Information</CardTitle>
+          </CardHeader>
           <CardContent className="space-y-4">
-            <div><Label>Display Name</Label><Input placeholder="Your display name" value={formData.displayName} onChange={(e) => setFormData({ ...formData, displayName: e.target.value })} /></div>
-            <div><Label>Bio</Label><Textarea placeholder="Tell others about yourself..." value={formData.bio} onChange={(e) => setFormData({ ...formData, bio: e.target.value })} rows={3} /></div>
+            <div>
+              <Label>Display Name</Label>
+              <Input
+                placeholder="Your display name"
+                value={formData.displayName}
+                onChange={(event) => setFormData((prev) => ({ ...prev, displayName: event.target.value }))}
+              />
+            </div>
+            <div>
+              <Label>Bio</Label>
+              <Textarea
+                placeholder="Tell others about yourself..."
+                value={formData.bio}
+                onChange={(event) => setFormData((prev) => ({ ...prev, bio: event.target.value }))}
+                rows={3}
+              />
+            </div>
           </CardContent>
         </Card>
 
         <Card className="glass-card">
-          <CardHeader><CardTitle className="text-lg">Academic Information</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle className="text-lg">Academic Information</CardTitle>
+          </CardHeader>
           <CardContent className="space-y-4">
+            <div>
+              <Label>University</Label>
+              <Select
+                value={formData.universityId || "__none__"}
+                onValueChange={(value) => handleUniversitySelect(value === "__none__" ? "" : value)}
+                disabled={isBootstrapping}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select university" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">No university selected</SelectItem>
+                  {universities.map((university) => (
+                    <SelectItem key={university.id} value={university.id}>
+                      {university.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
             <div className="grid grid-cols-2 gap-4">
-              <div><Label>Department</Label><Select value={formData.department} onValueChange={(v) => setFormData({ ...formData, department: v })}><SelectTrigger><SelectValue placeholder="Select department" /></SelectTrigger><SelectContent>{departments.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}</SelectContent></Select></div>
-              <div><Label>Level</Label><Select value={formData.level} onValueChange={(v) => setFormData({ ...formData, level: v })}><SelectTrigger><SelectValue placeholder="Select level" /></SelectTrigger><SelectContent>{levels.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}</SelectContent></Select></div>
+              <div>
+                <Label>Department</Label>
+                <Select value={formData.department} onValueChange={(value) => setFormData((prev) => ({ ...prev, department: value }))}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select department" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {departments.map((department) => (
+                      <SelectItem key={department} value={department}>
+                        {department}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Level</Label>
+                <Select value={formData.level} onValueChange={(value) => setFormData((prev) => ({ ...prev, level: value }))}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select level" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {levels.map((level) => (
+                      <SelectItem key={level} value={level}>
+                        {level}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </CardContent>
         </Card>
 
         <Card className="glass-card border-warning/30">
           <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2"><AlertTriangle className="w-5 h-5 text-warning" />University</CardTitle>
-            <CardDescription>You can only change your university {2 - universityChangeCount} more time(s). After that, admin verification is required.</CardDescription>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <AlertTriangle className="h-5 w-5 text-warning" />
+              University Change Policy
+            </CardTitle>
+            <CardDescription>
+              You have {Math.max(0, 2 - universityChangeCount)} tracked university change(s) remaining before manual admin review is required.
+            </CardDescription>
           </CardHeader>
-          <CardContent><Button type="button" variant="outline" onClick={handleUniversityChange} disabled={universityChangeCount >= 2}>{universityChangeCount >= 2 ? "Requires Admin Verification" : "Change University"}</Button></CardContent>
+          <CardContent className="text-sm text-muted-foreground">
+            The first time you set a university does not count toward the limit. Switching from one existing university to another does.
+          </CardContent>
         </Card>
 
         <div className="flex gap-3">
-          <Button type="button" variant="outline" className="flex-1" onClick={() => navigate(-1)}>Cancel</Button>
-          <Button type="submit" variant="hero" className="flex-1" disabled={isLoading}>{isLoading ? "Saving..." : "Save Changes"}</Button>
+          <Button type="button" variant="outline" className="flex-1" onClick={() => navigate(-1)}>
+            Cancel
+          </Button>
+          <Button type="submit" variant="hero" className="flex-1" disabled={isLoading || isBootstrapping}>
+            {isLoading ? "Saving..." : "Save Changes"}
+          </Button>
         </div>
       </form>
 
       <AlertDialog open={universityChangeWarning} onOpenChange={setUniversityChangeWarning}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2"><AlertTriangle className="w-5 h-5 text-warning" />University Change Warning</AlertDialogTitle>
-            <AlertDialogDescription>You have used {universityChangeCount} of 2 allowed university changes. After the second change, any further modifications will require admin verification.</AlertDialogDescription>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-warning" />
+              University Change Warning
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              You have used {universityChangeCount} of 2 tracked university changes. Additional changes after the limit require admin review.
+            </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={confirmUniversityChange}>I Understand, Proceed</AlertDialogAction></AlertDialogFooter>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Back</AlertDialogCancel>
+            <AlertDialogAction onClick={() => toast.info(`You have ${Math.max(0, 2 - universityChangeCount)} tracked change(s) remaining.`)}>
+              I Understand
+            </AlertDialogAction>
+          </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     </div>

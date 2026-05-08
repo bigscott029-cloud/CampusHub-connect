@@ -5,8 +5,16 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ArrowLeft, Hash, Heart, MessageCircle, Share2 } from "lucide-react";
 
+interface TrendingPost {
+  id: number;
+  author: string;
+  content: string;
+  likes: number;
+  comments: number;
+}
+
 // Mock data for trending posts
-const mockTrendingPosts: Record<string, any[]> = {
+const mockTrendingPosts: Record<string, TrendingPost[]> = {
   ExamTimetable: [
     { id: 1, author: "Student Affairs", content: "The exam timetable for 2025/2026 session is now available! Check your portal.", likes: 234, comments: 45 },
     { id: 2, author: "CSC Department", content: "CSC exams will begin on Feb 15th. Prepare accordingly! #ExamTimetable", likes: 156, comments: 23 },

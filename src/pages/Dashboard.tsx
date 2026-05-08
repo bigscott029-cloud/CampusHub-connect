@@ -1,19 +1,25 @@
-import { useAuth } from "@/hooks/useAuth";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { useMemo } from "react";
+import { Link } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import {
-  Newspaper,
-  Ghost,
-  Home,
-  ShoppingBag,
-  MessageCircle,
+  Bell,
   BookOpen,
+  Calendar,
+  Home,
+  MessageCircle,
+  Newspaper,
+  ShoppingBag,
   TrendingUp,
   Users,
-  Bell,
-  Calendar,
+  Ghost,
 } from "lucide-react";
-import { Link } from "react-router-dom";
+
+import { useAuth } from "@/hooks/useAuth";
+import { getProfileWithUniversity } from "@/lib/campus";
+import { formatCompactNumber, formatRelativeTime } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 
 const quickLinks = [
   { title: "Campus Gists", description: "Latest news & updates", icon: Newspaper, url: "/feed", color: "module-gists" },
@@ -24,47 +30,224 @@ const quickLinks = [
   { title: "Academic", description: "Study resources", icon: BookOpen, url: "/academic", color: "module-academic" },
 ];
 
-const recentActivity = [
-  { title: "New gist posted in your department", time: "2 mins ago", type: "gist" },
-  { title: "Someone replied to your anonymous post", time: "15 mins ago", type: "anonymous" },
-  { title: "New hostel listing in your area", time: "1 hour ago", type: "hostel" },
-  { title: "Price drop on a saved item", time: "3 hours ago", type: "marketplace" },
-];
+interface ActivityItem {
+  id: string;
+  title: string;
+  time: string;
+  createdAt: string;
+  type: "gist" | "marketplace" | "hostel";
+}
 
 const Dashboard = () => {
   const { user } = useAuth();
   const displayName = user?.user_metadata?.display_name || user?.email?.split("@")[0] || "Student";
 
+  const dashboardQuery = useQuery({
+    queryKey: ["dashboard", user?.id],
+    enabled: Boolean(user),
+    queryFn: async () => {
+      if (!user) {
+        return null;
+      }
+
+      const { profile, university } = await getProfileWithUniversity(user.id);
+      const universityId = profile?.university_id ?? null;
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const todayIso = today.toISOString();
+
+      const gistCountQuery = supabase
+        .from("posts")
+        .select("id", { count: "exact", head: true })
+        .gte("created_at", todayIso);
+
+      const examsCountQuery = supabase
+        .from("exams")
+        .select("id", { count: "exact", head: true })
+        .gte("exam_date", new Date().toISOString());
+
+      const recentPostsQuery = supabase
+        .from("posts")
+        .select("id, content, created_at")
+        .order("created_at", { ascending: false })
+        .limit(4);
+
+      const recentMarketplaceQuery = supabase
+        .from("marketplace_listings")
+        .select("id, title, created_at")
+        .order("created_at", { ascending: false })
+        .limit(4);
+
+      const recentHostelsQuery = supabase
+        .from("hostel_listings")
+        .select("id, title, created_at")
+        .order("created_at", { ascending: false })
+        .limit(4);
+
+      const trendingPostsQuery = supabase
+        .from("posts")
+        .select("hashtags, content")
+        .order("created_at", { ascending: false })
+        .limit(50);
+
+      if (universityId) {
+        gistCountQuery.eq("university_id", universityId);
+        examsCountQuery.eq("university_id", universityId);
+        recentPostsQuery.eq("university_id", universityId);
+        recentMarketplaceQuery.eq("university_id", universityId);
+        recentHostelsQuery.eq("university_id", universityId);
+        trendingPostsQuery.eq("university_id", universityId);
+      }
+
+      const [
+        { count: newGistsToday, error: gistsError },
+        { count: unreadNotifications, error: notificationsError },
+        { count: upcomingExams, error: examsError },
+        { data: recentPosts, error: recentPostsError },
+        { data: recentMarketplace, error: marketplaceError },
+        { data: recentHostels, error: hostelsError },
+        { data: trendingPosts, error: trendingError },
+        { data: conversations, error: conversationsError },
+      ] = await Promise.all([
+        gistCountQuery,
+        supabase
+          .from("notifications")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", user.id)
+          .eq("is_read", false),
+        examsCountQuery,
+        recentPostsQuery,
+        recentMarketplaceQuery,
+        recentHostelsQuery,
+        trendingPostsQuery,
+        supabase
+          .from("conversations")
+          .select("id")
+          .or(`participant_1.eq.${user.id},participant_2.eq.${user.id}`),
+      ]);
+
+      if (gistsError || notificationsError || examsError || recentPostsError || marketplaceError || hostelsError || trendingError || conversationsError) {
+        throw gistsError || notificationsError || examsError || recentPostsError || marketplaceError || hostelsError || trendingError || conversationsError;
+      }
+
+      let unreadMessages = 0;
+      const conversationIds = conversations?.map((conversation) => conversation.id) ?? [];
+
+      if (conversationIds.length > 0) {
+        const { count, error } = await supabase
+          .from("messages")
+          .select("id", { count: "exact", head: true })
+          .in("conversation_id", conversationIds)
+          .neq("sender_id", user.id)
+          .eq("is_read", false);
+
+        if (error) {
+          throw error;
+        }
+
+        unreadMessages = count ?? 0;
+      }
+
+      const recentActivity: ActivityItem[] = [
+        ...(recentPosts ?? []).map((post) => ({
+          id: `post-${post.id}`,
+          title: post.content.length > 72 ? `${post.content.slice(0, 72)}...` : post.content,
+          time: formatRelativeTime(post.created_at),
+          createdAt: post.created_at,
+          type: "gist" as const,
+        })),
+        ...(recentMarketplace ?? []).map((listing) => ({
+          id: `market-${listing.id}`,
+          title: `Marketplace: ${listing.title}`,
+          time: formatRelativeTime(listing.created_at),
+          createdAt: listing.created_at,
+          type: "marketplace" as const,
+        })),
+        ...(recentHostels ?? []).map((listing) => ({
+          id: `hostel-${listing.id}`,
+          title: `Hostel: ${listing.title}`,
+          time: formatRelativeTime(listing.created_at),
+          createdAt: listing.created_at,
+          type: "hostel" as const,
+        })),
+      ]
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+        .slice(0, 4);
+
+      const tagCounts = new Map<string, number>();
+      for (const post of trendingPosts ?? []) {
+        const tags = post.hashtags?.length
+          ? post.hashtags
+          : Array.from(post.content.matchAll(/#([a-z0-9_]+)/gi), (match) => match[1]);
+
+        for (const tag of tags) {
+          const normalized = tag.replace(/^#/, "").trim();
+          if (!normalized) continue;
+          tagCounts.set(normalized, (tagCounts.get(normalized) ?? 0) + 1);
+        }
+      }
+
+      const trendingTags = [...tagCounts.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5)
+        .map(([tag, count]) => ({ tag, count }));
+
+      return {
+        universityName: university?.name ?? "Campus community",
+        stats: {
+          newGistsToday: newGistsToday ?? 0,
+          unreadNotifications: unreadNotifications ?? 0,
+          unreadMessages,
+          upcomingExams: upcomingExams ?? 0,
+        },
+        recentActivity,
+        trendingTags,
+      };
+    },
+  });
+
+  const emptyTrendingTags = useMemo(
+    () => [
+      { tag: "CampusHub", count: 0 },
+      { tag: "StudyTips", count: 0 },
+      { tag: "Marketplace", count: 0 },
+    ],
+    [],
+  );
+
+  const data = dashboardQuery.data;
+
   return (
     <div className="space-y-6">
-      {/* Welcome Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-2xl md:text-3xl font-display font-bold">
-            Welcome back, <span className="gradient-text">{displayName}</span>! 👋
+          <h1 className="text-2xl font-display font-bold md:text-3xl">
+            Welcome back, <span className="gradient-text">{displayName}</span>!
           </h1>
-          <p className="text-muted-foreground mt-1">
-            Here's what's happening on your campus today.
+          <p className="mt-1 text-muted-foreground">
+            Here&apos;s what&apos;s happening on your campus today.
           </p>
         </div>
         <div className="flex items-center gap-2">
           <Badge variant="secondary" className="gap-1">
-            <Users className="w-3 h-3" />
-            Demo University
+            <Users className="h-3 w-3" />
+            {data?.universityName ?? "Loading campus..."}
           </Badge>
         </div>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         <Card className="glass-card">
           <CardContent className="pt-6">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-primary/10">
-                <TrendingUp className="w-5 h-5 text-primary" />
+              <div className="rounded-lg bg-primary/10 p-2">
+                <TrendingUp className="h-5 w-5 text-primary" />
               </div>
               <div>
-                <p className="text-2xl font-bold">24</p>
+                <p className="text-2xl font-bold">
+                  {dashboardQuery.isLoading ? "--" : formatCompactNumber(data?.stats.newGistsToday ?? 0)}
+                </p>
                 <p className="text-xs text-muted-foreground">New Gists Today</p>
               </div>
             </div>
@@ -73,12 +256,14 @@ const Dashboard = () => {
         <Card className="glass-card">
           <CardContent className="pt-6">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-accent/10">
-                <Bell className="w-5 h-5 text-accent" />
+              <div className="rounded-lg bg-accent/10 p-2">
+                <Bell className="h-5 w-5 text-accent" />
               </div>
               <div>
-                <p className="text-2xl font-bold">5</p>
-                <p className="text-xs text-muted-foreground">Notifications</p>
+                <p className="text-2xl font-bold">
+                  {dashboardQuery.isLoading ? "--" : formatCompactNumber(data?.stats.unreadNotifications ?? 0)}
+                </p>
+                <p className="text-xs text-muted-foreground">Unread Notifications</p>
               </div>
             </div>
           </CardContent>
@@ -86,11 +271,13 @@ const Dashboard = () => {
         <Card className="glass-card">
           <CardContent className="pt-6">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-primary/10">
-                <MessageCircle className="w-5 h-5 text-primary" />
+              <div className="rounded-lg bg-primary/10 p-2">
+                <MessageCircle className="h-5 w-5 text-primary" />
               </div>
               <div>
-                <p className="text-2xl font-bold">3</p>
+                <p className="text-2xl font-bold">
+                  {dashboardQuery.isLoading ? "--" : formatCompactNumber(data?.stats.unreadMessages ?? 0)}
+                </p>
                 <p className="text-xs text-muted-foreground">Unread Messages</p>
               </div>
             </div>
@@ -99,31 +286,32 @@ const Dashboard = () => {
         <Card className="glass-card">
           <CardContent className="pt-6">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-accent/10">
-                <Calendar className="w-5 h-5 text-accent" />
+              <div className="rounded-lg bg-accent/10 p-2">
+                <Calendar className="h-5 w-5 text-accent" />
               </div>
               <div>
-                <p className="text-2xl font-bold">2</p>
-                <p className="text-xs text-muted-foreground">Upcoming Events</p>
+                <p className="text-2xl font-bold">
+                  {dashboardQuery.isLoading ? "--" : formatCompactNumber(data?.stats.upcomingExams ?? 0)}
+                </p>
+                <p className="text-xs text-muted-foreground">Upcoming Exams</p>
               </div>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Quick Links Grid */}
       <div>
-        <h2 className="text-lg font-display font-semibold mb-4">Quick Access</h2>
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+        <h2 className="mb-4 text-lg font-display font-semibold">Quick Access</h2>
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
           {quickLinks.map((link) => (
             <Link key={link.title} to={link.url}>
-              <Card className="glass-card hover-lift cursor-pointer h-full">
+              <Card className="glass-card h-full cursor-pointer hover-lift">
                 <CardContent className="pt-6 text-center">
-                  <div className={`w-12 h-12 rounded-xl ${link.color} border flex items-center justify-center mx-auto mb-3`}>
-                    <link.icon className="w-6 h-6" />
+                  <div className={`mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl border ${link.color}`}>
+                    <link.icon className="h-6 w-6" />
                   </div>
-                  <h3 className="font-semibold text-sm">{link.title}</h3>
-                  <p className="text-xs text-muted-foreground mt-1">{link.description}</p>
+                  <h3 className="text-sm font-semibold">{link.title}</h3>
+                  <p className="mt-1 text-xs text-muted-foreground">{link.description}</p>
                 </CardContent>
               </Card>
             </Link>
@@ -131,40 +319,45 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* Recent Activity */}
-      <div className="grid md:grid-cols-2 gap-6">
+      <div className="grid gap-6 md:grid-cols-2">
         <Card className="glass-card">
           <CardHeader>
             <CardTitle className="text-lg font-display">Recent Activity</CardTitle>
-            <CardDescription>What's been happening on campus</CardDescription>
+            <CardDescription>Fresh updates from your campus</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {recentActivity.map((activity, idx) => (
-                <div key={idx} className="flex items-start gap-3">
-                  <div className="w-2 h-2 rounded-full bg-primary mt-2 shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm">{activity.title}</p>
-                    <p className="text-xs text-muted-foreground">{activity.time}</p>
+            {dashboardQuery.isError ? (
+              <p className="text-sm text-destructive">We couldn&apos;t load campus activity right now.</p>
+            ) : data?.recentActivity.length ? (
+              <div className="space-y-4">
+                {data.recentActivity.map((activity) => (
+                  <div key={activity.id} className="flex items-start gap-3">
+                    <div className="mt-2 h-2 w-2 shrink-0 rounded-full bg-primary" />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm">{activity.title}</p>
+                      <p className="text-xs text-muted-foreground">{activity.time}</p>
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">No campus activity yet. New posts and listings will show up here.</p>
+            )}
           </CardContent>
         </Card>
 
         <Card className="glass-card">
           <CardHeader>
             <CardTitle className="text-lg font-display">Trending on Campus</CardTitle>
-            <CardDescription>Popular topics right now</CardDescription>
+            <CardDescription>Popular hashtags from recent gists</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {["#ExamSchedule", "#HostelLife", "#StudyGroup", "#MarketplaceSale", "#CampusEvent"].map((tag, idx) => (
-                <div key={idx} className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-primary">{tag}</span>
+              {(data?.trendingTags.length ? data.trendingTags : emptyTrendingTags).map((item) => (
+                <div key={item.tag} className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-primary">#{item.tag}</span>
                   <Badge variant="secondary" className="text-xs">
-                    {Math.floor(Math.random() * 50 + 10)} posts
+                    {item.count} {item.count === 1 ? "post" : "posts"}
                   </Badge>
                 </div>
               ))}

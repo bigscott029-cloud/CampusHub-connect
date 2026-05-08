@@ -77,7 +77,7 @@ const AnonymousNameModal = ({ open, onClose }: AnonymousNameModalProps) => {
 
       toast.success("Anonymous identity created!");
       onClose(nameToSave);
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error saving anonymous name:", error);
       toast.error("Failed to save. Please try again.");
     } finally {

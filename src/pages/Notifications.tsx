@@ -1,153 +1,287 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useQuery } from "@tanstack/react-query";
+import {
+  AlertCircle,
+  ArrowLeft,
+  Bell,
+  Check,
+  Clock,
+  Eye,
+  Newspaper,
+  Settings,
+} from "lucide-react";
+
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
+import { formatRelativeTime } from "@/lib/utils";
+import { toast } from "sonner";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Bell, Check, Trash2, Settings, Clock, Newspaper, AlertCircle, Eye, ArrowLeft } from "lucide-react";
-import { toast } from "sonner";
-
-interface Notification {
-  id: number;
-  title: string;
-  description: string;
-  time: string;
-  read: boolean;
-  type: "comment" | "marketplace" | "hostel" | "academic" | "system" | "ad";
-  isImportant?: boolean;
-  referenceId?: string;
-  fullContent?: string;
-}
-
-const mockNotifications: Notification[] = [
-  { id: 1, title: "New comment on your post", description: "Jane Doe commented on your gist about campus events", time: "5 mins ago", read: false, type: "comment", fullContent: "Jane Doe said: 'This is really helpful information! Thanks for sharing the event details. Will definitely be there.'" },
-  { id: 2, title: "Your listing got a response", description: "Someone is interested in your laptop listing", time: "1 hour ago", read: false, type: "marketplace", isImportant: true, referenceId: "listing-1", fullContent: "A potential buyer is interested in your HP Pavilion Laptop listing. They've sent you a message with questions about the condition and warranty." },
-  { id: 3, title: "New hostel listing in your area", description: "A new self-contain was listed near campus gate", time: "3 hours ago", read: true, type: "hostel", referenceId: "hostel-1" },
-  { id: 4, title: "Study group reminder", description: "CSC 301 study group meeting in 30 minutes", time: "5 hours ago", read: true, type: "academic", isImportant: true },
-  { id: 5, title: "Sponsored: New Tech Gadgets Store", description: "Check out the latest smartphones and accessories at student prices!", time: "6 hours ago", read: true, type: "ad", referenceId: "ad-123" },
-  { id: 6, title: "Listing Approved", description: "Your hostel listing has been approved and is now visible", time: "1 day ago", read: true, type: "system", isImportant: true },
-];
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 const Notifications = () => {
   const navigate = useNavigate();
-  const [notifications, setNotifications] = useState(mockNotifications);
+  const { user } = useAuth();
   const [activeFilter, setActiveFilter] = useState("all");
   const [detailOpen, setDetailOpen] = useState(false);
-  const [selectedNotif, setSelectedNotif] = useState<Notification | null>(null);
+  const [selectedNotifId, setSelectedNotifId] = useState<string | null>(null);
 
-  const unreadCount = notifications.filter(n => !n.read).length;
+  const notificationsQuery = useQuery({
+    queryKey: ["notifications", user?.id],
+    enabled: Boolean(user),
+    queryFn: async () => {
+      if (!user) return [];
 
-  const markAllRead = () => {
-    setNotifications(notifications.map(n => ({ ...n, read: true })));
-    toast.success("All notifications marked as read");
-  };
+      const { data, error } = await supabase
+        .from("notifications")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false });
 
-  const markAsRead = (id: number) => {
-    setNotifications(notifications.map(n => n.id === id ? { ...n, read: true } : n));
-  };
+      if (error) throw error;
 
-  const deleteNotification = (id: number) => {
-    setNotifications(notifications.filter(n => n.id !== id));
-    toast.success("Notification deleted");
-  };
+      return data ?? [];
+    },
+  });
 
-  const handleNotificationClick = (notif: Notification) => {
-    markAsRead(notif.id);
-    if (notif.type === "comment") {
-      setSelectedNotif(notif);
-      setDetailOpen(true);
-    } else if (notif.type === "marketplace") {
-      setSelectedNotif(notif);
-      setDetailOpen(true);
-    } else if (notif.type === "hostel" && notif.referenceId) {
-      navigate("/hostel");
-    } else if (notif.type === "ad") {
-      setSelectedNotif(notif);
-      setDetailOpen(true);
-    } else {
-      setSelectedNotif(notif);
-      setDetailOpen(true);
-    }
-  };
+  const notifications = useMemo(() => notificationsQuery.data ?? [], [notificationsQuery.data]);
+  const unreadCount = notifications.filter((notification) => !notification.is_read).length;
+  const selectedNotification = notifications.find((notification) => notification.id === selectedNotifId) ?? null;
 
-  const getFilteredNotifications = () => {
+  const filteredNotifications = useMemo(() => {
     switch (activeFilter) {
-      case "recent": return notifications.filter(n => !n.read);
-      case "posts": return notifications.filter(n => n.type === "ad" || n.type === "comment");
-      case "important": return notifications.filter(n => n.isImportant);
-      default: return notifications;
+      case "recent":
+        return notifications.filter((notification) => !notification.is_read);
+      case "posts":
+        return notifications.filter(
+          (notification) =>
+            notification.type === "comment" ||
+            notification.type === "listing" ||
+            notification.type === "ad",
+        );
+      case "important":
+        return notifications.filter((notification) => notification.is_important);
+      default:
+        return notifications;
     }
+  }, [activeFilter, notifications]);
+
+  const markAsRead = async (id: string) => {
+    if (!user) return;
+
+    const { error } = await supabase
+      .from("notifications")
+      .update({ is_read: true })
+      .eq("id", id)
+      .eq("user_id", user.id);
+
+    if (error) {
+      toast.error("Could not update that notification.");
+      return;
+    }
+
+    await notificationsQuery.refetch();
   };
 
-  const filteredNotifications = getFilteredNotifications();
+  const markAllRead = async () => {
+    if (!user || unreadCount === 0) return;
+
+    const { error } = await supabase
+      .from("notifications")
+      .update({ is_read: true })
+      .eq("user_id", user.id)
+      .eq("is_read", false);
+
+    if (error) {
+      toast.error("Could not mark notifications as read.");
+      return;
+    }
+
+    toast.success("All notifications marked as read");
+    await notificationsQuery.refetch();
+  };
+
+  const handleNotificationClick = async (notificationId: string) => {
+    const notification = notifications.find((item) => item.id === notificationId);
+    if (!notification) return;
+
+    if (!notification.is_read) {
+      await markAsRead(notification.id);
+    }
+
+    setSelectedNotifId(notification.id);
+    setDetailOpen(true);
+  };
+
+  const openReference = () => {
+    if (!selectedNotification) return;
+
+    setDetailOpen(false);
+
+    if (selectedNotification.type === "comment") {
+      navigate("/feed");
+      return;
+    }
+
+    if (selectedNotification.reference_type === "hostel_listing") {
+      navigate("/hostel");
+      return;
+    }
+
+    if (selectedNotification.reference_type === "roommate_request") {
+      navigate("/hostel");
+      return;
+    }
+
+    if (selectedNotification.reference_type === "marketplace_listing" || selectedNotification.type === "listing") {
+      navigate("/marketplace");
+      return;
+    }
+
+    navigate("/dashboard");
+  };
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
+    <div className="mx-auto max-w-2xl space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => navigate(-1)}><ArrowLeft className="w-5 h-5" /></Button>
-          <div className="w-10 h-10 rounded-xl bg-accent/10 border border-accent/20 flex items-center justify-center"><Bell className="w-5 h-5 text-accent" /></div>
-          <div><h1 className="text-2xl font-display font-bold">Notifications</h1><p className="text-sm text-muted-foreground">{unreadCount > 0 ? `${unreadCount} unread` : "All caught up!"}</p></div>
+          <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-accent/20 bg-accent/10">
+            <Bell className="h-5 w-5 text-accent" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-display font-bold">Notifications</h1>
+            <p className="text-sm text-muted-foreground">
+              {unreadCount > 0 ? `${unreadCount} unread` : "All caught up!"}
+            </p>
+          </div>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={markAllRead} disabled={unreadCount === 0}><Check className="w-4 h-4 mr-1" />Mark all read</Button>
-          <Button variant="ghost" size="icon" onClick={() => navigate("/settings")}><Settings className="w-4 h-4" /></Button>
+          <Button variant="outline" size="sm" onClick={markAllRead} disabled={unreadCount === 0}>
+            <Check className="mr-1 h-4 w-4" />
+            Mark all read
+          </Button>
+          <Button variant="ghost" size="icon" onClick={() => navigate("/settings")}>
+            <Settings className="h-4 w-4" />
+          </Button>
         </div>
       </div>
 
       <Tabs value={activeFilter} onValueChange={setActiveFilter}>
         <TabsList className="bg-muted/50 p-1">
-          <TabsTrigger value="all" className="gap-1">All<Badge variant="secondary" className="ml-1 h-5 px-1.5">{notifications.length}</Badge></TabsTrigger>
-          <TabsTrigger value="recent" className="gap-1"><Clock className="w-4 h-4" />Recent</TabsTrigger>
-          <TabsTrigger value="posts" className="gap-1"><Newspaper className="w-4 h-4" />Posts</TabsTrigger>
-          <TabsTrigger value="important" className="gap-1"><AlertCircle className="w-4 h-4" />Important</TabsTrigger>
+          <TabsTrigger value="all" className="gap-1">
+            All
+            <Badge variant="secondary" className="ml-1 h-5 px-1.5">
+              {notifications.length}
+            </Badge>
+          </TabsTrigger>
+          <TabsTrigger value="recent" className="gap-1">
+            <Clock className="h-4 w-4" />
+            Recent
+          </TabsTrigger>
+          <TabsTrigger value="posts" className="gap-1">
+            <Newspaper className="h-4 w-4" />
+            Posts
+          </TabsTrigger>
+          <TabsTrigger value="important" className="gap-1">
+            <AlertCircle className="h-4 w-4" />
+            Important
+          </TabsTrigger>
         </TabsList>
       </Tabs>
 
       <Card className="glass-card">
         <CardContent className="divide-y divide-border/50">
-          {filteredNotifications.length === 0 ? (
-            <div className="py-12 text-center"><Bell className="w-12 h-12 mx-auto text-muted-foreground mb-4" /><p className="text-muted-foreground">No notifications in this category</p></div>
+          {notificationsQuery.isLoading ? (
+            <div className="py-12 text-center text-muted-foreground">Loading notifications...</div>
+          ) : notificationsQuery.isError ? (
+            <div className="py-12 text-center">
+              <Bell className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
+              <p className="text-muted-foreground">We couldn&apos;t load your notifications right now.</p>
+            </div>
+          ) : filteredNotifications.length === 0 ? (
+            <div className="py-12 text-center">
+              <Bell className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
+              <p className="text-muted-foreground">No notifications in this category</p>
+            </div>
           ) : (
             filteredNotifications.map((notification) => (
-              <div key={notification.id} className={`flex items-start gap-4 py-4 first:pt-6 last:pb-6 cursor-pointer hover:bg-muted/30 -mx-6 px-6 ${!notification.read ? "bg-primary/5" : ""}`} onClick={() => handleNotificationClick(notification)}>
-                <div className={`w-2 h-2 rounded-full mt-2 shrink-0 ${!notification.read ? "bg-primary" : "bg-transparent"}`} />
-                <div className="flex-1 min-w-0">
+              <div
+                key={notification.id}
+                className={`-mx-6 flex cursor-pointer items-start gap-4 px-6 py-4 first:pt-6 last:pb-6 hover:bg-muted/30 ${!notification.is_read ? "bg-primary/5" : ""}`}
+                onClick={() => handleNotificationClick(notification.id)}
+              >
+                <div className={`mt-2 h-2 w-2 shrink-0 rounded-full ${!notification.is_read ? "bg-primary" : "bg-transparent"}`} />
+                <div className="min-w-0 flex-1">
                   <div className="flex items-start gap-2">
-                    <p className="font-medium text-sm">{notification.title}</p>
-                    {notification.isImportant && <Badge variant="destructive" className="text-xs h-5">Important</Badge>}
-                    {notification.type === "ad" && <Badge variant="secondary" className="text-xs h-5">Sponsored</Badge>}
-                  </div>
-                  <p className="text-sm text-muted-foreground mt-0.5">{notification.description}</p>
-                  <div className="flex items-center gap-3 mt-2">
-                    <p className="text-xs text-muted-foreground">{notification.time}</p>
-                    {notification.referenceId && (
-                      <Button variant="link" size="sm" className="h-auto p-0 text-xs" onClick={(e) => { e.stopPropagation(); handleNotificationClick(notification); }}><Eye className="w-3 h-3 mr-1" />View</Button>
+                    <p className="text-sm font-medium">{notification.title}</p>
+                    {notification.is_important && (
+                      <Badge variant="destructive" className="h-5 text-xs">
+                        Important
+                      </Badge>
+                    )}
+                    {notification.type === "ad" && (
+                      <Badge variant="secondary" className="h-5 text-xs">
+                        Sponsored
+                      </Badge>
                     )}
                   </div>
+                  <p className="mt-0.5 text-sm text-muted-foreground">{notification.description}</p>
+                  <div className="mt-2 flex items-center gap-3">
+                    <p className="text-xs text-muted-foreground">{formatRelativeTime(notification.created_at)}</p>
+                    <Button
+                      variant="link"
+                      size="sm"
+                      className="h-auto p-0 text-xs"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        handleNotificationClick(notification.id);
+                      }}
+                    >
+                      <Eye className="mr-1 h-3 w-3" />
+                      View
+                    </Button>
+                  </div>
                 </div>
-                <Button variant="ghost" size="icon" className="shrink-0 text-muted-foreground hover:text-destructive" onClick={(e) => { e.stopPropagation(); deleteNotification(notification.id); }}><Trash2 className="w-4 h-4" /></Button>
+                {!notification.is_read && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="shrink-0"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      markAsRead(notification.id);
+                    }}
+                  >
+                    <Check className="h-4 w-4" />
+                  </Button>
+                )}
               </div>
             ))
           )}
         </CardContent>
       </Card>
 
-      {/* Notification Detail Dialog */}
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
         <DialogContent>
-          <DialogHeader><DialogTitle>{selectedNotif?.title}</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>{selectedNotification?.title}</DialogTitle>
+          </DialogHeader>
           <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">{selectedNotif?.fullContent || selectedNotif?.description}</p>
-            <p className="text-xs text-muted-foreground">{selectedNotif?.time}</p>
-            {selectedNotif?.type === "marketplace" && <Button variant="hero" className="w-full" onClick={() => { setDetailOpen(false); navigate("/marketplace"); }}>View Listing</Button>}
-            {selectedNotif?.type === "comment" && <Button variant="hero" className="w-full" onClick={() => { setDetailOpen(false); navigate("/feed"); }}>View Post</Button>}
+            <p className="text-sm text-muted-foreground">
+              {selectedNotification?.description || "No additional details available."}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {selectedNotification ? formatRelativeTime(selectedNotification.created_at) : ""}
+            </p>
+            <Button variant="hero" className="w-full" onClick={openReference}>
+              Open Related Page
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

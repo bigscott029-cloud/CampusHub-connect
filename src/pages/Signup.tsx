@@ -74,7 +74,7 @@ const Signup = () => {
 
     setIsLoading(true);
 
-    const { error } = await signUp(email, password, displayName);
+    const { error } = await signUp(email, password, displayName, universityId);
 
     if (error) {
       toast({

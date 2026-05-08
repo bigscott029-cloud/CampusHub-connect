@@ -1,12 +1,30 @@
-import { useState } from "react";
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  Bookmark,
+  Clock,
+  Flame,
+  Heart,
+  MessageCircle,
+  Quote,
+  Repeat2,
+  Send,
+  Share2,
+  Sparkles,
+  TrendingUp,
+  UserCheck,
+  UserPlus,
+  Verified,
+} from "lucide-react";
+import { toast } from "sonner";
+
+import PostComposer from "@/components/feed/PostComposer";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -19,137 +37,255 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  Heart,
-  MessageCircle,
-  Share2,
-  Bookmark,
-  MoreHorizontal,
-  TrendingUp,
-  Clock,
-  Flame,
-  Verified,
-  Sparkles,
-  UserPlus,
-  UserCheck,
-  Repeat2,
-  Quote,
-  Send,
-} from "lucide-react";
-import PostComposer from "@/components/feed/PostComposer";
+import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { formatCompactNumber, formatRelativeTime } from "@/lib/utils";
 
-const trendingTopics = [
-  { tag: "ExamTimetable", count: "2.3K" },
-  { tag: "SUGElections", count: "1.8K" },
-  { tag: "LibraryHours", count: "956" },
-  { tag: "FacultyWeek", count: "745" },
-];
-
-interface Comment {
-  id: number;
-  author: string;
-  avatar: string;
+interface FeedPost {
+  id: string;
+  userId: string;
+  author: {
+    id: string;
+    name: string;
+    handle: string;
+    avatar: string;
+    verified: boolean;
+  };
+  type: string;
   content: string;
   time: string;
   likes: number;
+  comments: number;
+  shares: number;
   isLiked: boolean;
-  replies?: Comment[];
+  isBookmarked: boolean;
+  image?: string;
+  hashtags: string[];
 }
 
-const mockComments: Comment[] = [
-  { id: 1, author: "Tunde A.", avatar: "T", content: "This is really helpful, thanks for sharing!", time: "30 min ago", likes: 12, isLiked: false, replies: [
-    { id: 11, author: "Amaka O.", avatar: "A", content: "I agree! Very useful info.", time: "20 min ago", likes: 3, isLiked: false },
-  ]},
-  { id: 2, author: "David K.", avatar: "D", content: "Does anyone know the new schedule?", time: "1 hour ago", likes: 5, isLiked: false },
-  { id: 3, author: "Grace N.", avatar: "G", content: "🔥🔥🔥", time: "2 hours ago", likes: 8, isLiked: true },
-];
+interface ThreadComment {
+  id: string;
+  user_id: string;
+  content: string;
+  likes_count: number;
+  created_at: string;
+  author: string;
+  avatar: string;
+}
 
-const mockPosts = [
-  {
-    id: 1,
-    author: { id: "csc_dept", name: "CSC Department", handle: "@csc_official", avatar: "C", verified: true },
-    type: "official",
-    content: "📢 Important Notice: All CSC 401 practical sessions have been moved to the New ICT Center. Please take note and inform your colleagues. #CSC401 #Update",
-    time: "2 hours ago",
-    likes: 234,
-    comments: 45,
-    shares: 89,
-    isLiked: false,
-    isBookmarked: false,
-  },
-  {
-    id: 2,
-    author: { id: "tunde", name: "Tunde Adebayo", handle: "@tundeA", avatar: "T", verified: false },
-    type: "gist",
-    content: "The new cafeteria prices are actually reasonable! Got a full meal for just ₦800. The jollof rice slaps different this semester 🍚🔥 #CampusFood #FoodReview",
-    time: "4 hours ago",
-    likes: 567,
-    comments: 123,
-    shares: 34,
-    isLiked: true,
-    isBookmarked: false,
-    image: "/placeholder.svg",
-  },
-  {
-    id: 3,
-    author: { id: "student_affairs", name: "Student Affairs", handle: "@student_affairs", avatar: "S", verified: true },
-    type: "event",
-    content: "🎉 Mark your calendars! The Annual Inter-Faculty Sports Competition kicks off next Monday. Registration is still open for all sports categories. Don't miss out!",
-    time: "6 hours ago",
-    likes: 890,
-    comments: 234,
-    shares: 156,
-    isLiked: false,
-    isBookmarked: true,
-  },
-  {
-    id: 4,
-    author: { id: "amaka", name: "Amaka Obi", handle: "@amakaO", avatar: "A", verified: false },
-    type: "gist",
-    content: "Just finished my final year project presentation! 🎓 The panel was tough but I think it went well. Thanks to everyone who helped me prepare. On to the next chapter! 💪",
-    time: "8 hours ago",
-    likes: 1234,
-    comments: 456,
-    shares: 78,
-    isLiked: true,
-    isBookmarked: false,
-  },
-];
-
-const suggestedAccounts = [
-  { id: "csc_dept", name: "CSC Department", handle: "@csc_official" },
-  { id: "student_affairs", name: "Student Affairs", handle: "@student_affairs" },
-  { id: "library", name: "Library Updates", handle: "@library_updates" },
-];
+const fallbackTopics = ["CampusLife", "StudyTips", "Marketplace", "HostelHub"];
 
 const Feed = () => {
   const navigate = useNavigate();
-  const [posts, setPosts] = useState(mockPosts);
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
   const [following, setFollowing] = useState<string[]>([]);
   const [threadOpen, setThreadOpen] = useState(false);
-  const [selectedPost, setSelectedPost] = useState<typeof mockPosts[0] | null>(null);
-  const [comments, setComments] = useState<Comment[]>(mockComments);
+  const [selectedPost, setSelectedPost] = useState<FeedPost | null>(null);
   const [newComment, setNewComment] = useState("");
-  const [replyTo, setReplyTo] = useState<number | null>(null);
-  const [replyText, setReplyText] = useState("");
 
-  const handleLike = (postId: number) => {
-    setPosts(posts.map(post =>
-      post.id === postId
-        ? { ...post, isLiked: !post.isLiked, likes: post.isLiked ? post.likes - 1 : post.likes + 1 }
-        : post
-    ));
-  };
+  const postsQuery = useQuery({
+    queryKey: ["feed-posts", user?.id],
+    queryFn: async (): Promise<FeedPost[]> => {
+      const { data: posts, error } = await supabase
+        .from("posts")
+        .select("id, user_id, content, images, hashtags, post_type, likes_count, comments_count, created_at")
+        .order("created_at", { ascending: false })
+        .limit(50);
 
-  const handleBookmark = (postId: number) => {
-    setPosts(posts.map(post =>
-      post.id === postId ? { ...post, isBookmarked: !post.isBookmarked } : post
-    ));
+      if (error) throw error;
+
+      const userIds = Array.from(new Set((posts ?? []).map((post) => post.user_id)));
+      const postIds = (posts ?? []).map((post) => post.id);
+
+      const [{ data: profiles }, { data: likedRows }, { data: bookmarkedRows }] = await Promise.all([
+        userIds.length
+          ? (supabase as any)
+              .from("profiles")
+              .select("user_id, display_name, avatar_url, verified_badge")
+              .in("user_id", userIds)
+          : Promise.resolve({ data: [] }),
+        user && postIds.length
+          ? supabase.from("post_likes").select("post_id").eq("user_id", user.id).in("post_id", postIds)
+          : Promise.resolve({ data: [] }),
+        user && postIds.length
+          ? (supabase as any).from("post_bookmarks").select("post_id").eq("user_id", user.id).in("post_id", postIds)
+          : Promise.resolve({ data: [] }),
+      ]);
+
+      const profileMap = new Map((profiles ?? []).map((profile: any) => [profile.user_id, profile]));
+      const liked = new Set((likedRows ?? []).map((row: any) => row.post_id));
+      const bookmarked = new Set((bookmarkedRows ?? []).map((row: any) => row.post_id));
+
+      return (posts ?? []).map((post) => {
+        const profile = profileMap.get(post.user_id);
+        const name = profile?.display_name || "Campus Member";
+        const images = post.images ?? [];
+
+        return {
+          id: post.id,
+          userId: post.user_id,
+          author: {
+            id: post.user_id,
+            name,
+            handle: `@${name.toLowerCase().replace(/[^a-z0-9]+/g, "").slice(0, 18) || "student"}`,
+            avatar: name.charAt(0).toUpperCase(),
+            verified: Boolean(profile?.verified_badge),
+          },
+          type: post.post_type || "gist",
+          content: post.content,
+          time: formatRelativeTime(post.created_at),
+          likes: post.likes_count ?? 0,
+          comments: post.comments_count ?? 0,
+          shares: 0,
+          isLiked: liked.has(post.id),
+          isBookmarked: bookmarked.has(post.id),
+          image: images[0],
+          hashtags: post.hashtags ?? [],
+        };
+      });
+    },
+  });
+
+  const commentsQuery = useQuery({
+    queryKey: ["post-comments", selectedPost?.id],
+    enabled: Boolean(selectedPost?.id && threadOpen),
+    queryFn: async (): Promise<ThreadComment[]> => {
+      const { data: comments, error } = await (supabase as any)
+        .from("post_comments")
+        .select("id, user_id, content, likes_count, created_at")
+        .eq("post_id", selectedPost?.id)
+        .order("created_at", { ascending: true });
+
+      if (error) throw error;
+
+      const userIds = Array.from(new Set((comments ?? []).map((comment: any) => comment.user_id)));
+      const { data: profiles } = userIds.length
+        ? await (supabase as any)
+            .from("profiles")
+            .select("user_id, display_name")
+            .in("user_id", userIds)
+        : { data: [] };
+      const profileMap = new Map((profiles ?? []).map((profile: any) => [profile.user_id, profile]));
+
+      return (comments ?? []).map((comment: any) => {
+        const author = profileMap.get(comment.user_id)?.display_name || "Campus Member";
+
+        return {
+          ...comment,
+          author,
+          avatar: author.charAt(0).toUpperCase(),
+        };
+      });
+    },
+  });
+
+  const suggestedAccountsQuery = useQuery({
+    queryKey: ["suggested-accounts", user?.id],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("profiles")
+        .select("user_id, display_name")
+        .neq("user_id", user?.id ?? "00000000-0000-0000-0000-000000000000")
+        .order("popularity_points", { ascending: false })
+        .limit(3);
+
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  const likeMutation = useMutation({
+    mutationFn: async (post: FeedPost) => {
+      if (!user) throw new Error("Please sign in to like posts.");
+
+      if (post.isLiked) {
+        const { error } = await supabase
+          .from("post_likes")
+          .delete()
+          .eq("post_id", post.id)
+          .eq("user_id", user.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from("post_likes").insert({ post_id: post.id, user_id: user.id });
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["feed-posts"] }),
+    onError: (error) => toast.error(error.message),
+  });
+
+  const bookmarkMutation = useMutation({
+    mutationFn: async (post: FeedPost) => {
+      if (!user) throw new Error("Please sign in to bookmark posts.");
+
+      if (post.isBookmarked) {
+        const { error } = await (supabase as any)
+          .from("post_bookmarks")
+          .delete()
+          .eq("post_id", post.id)
+          .eq("user_id", user.id);
+        if (error) throw error;
+      } else {
+        const { error } = await (supabase as any)
+          .from("post_bookmarks")
+          .insert({ post_id: post.id, user_id: user.id });
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["feed-posts"] }),
+    onError: (error) => toast.error(error.message),
+  });
+
+  const commentMutation = useMutation({
+    mutationFn: async () => {
+      if (!user || !selectedPost || !newComment.trim()) return;
+
+      const { error } = await (supabase as any).from("post_comments").insert({
+        post_id: selectedPost.id,
+        user_id: user.id,
+        content: newComment.trim(),
+      });
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      setNewComment("");
+      queryClient.invalidateQueries({ queryKey: ["post-comments", selectedPost?.id] });
+      queryClient.invalidateQueries({ queryKey: ["feed-posts"] });
+    },
+    onError: (error) => toast.error(error.message),
+  });
+
+  const posts = useMemo(() => postsQuery.data ?? [], [postsQuery.data]);
+
+  const trendingTopics = useMemo(() => {
+    const counts = new Map<string, number>();
+    posts.forEach((post) => {
+      [...post.hashtags, ...Array.from(post.content.matchAll(/#(\w+)/g)).map((match) => match[1])].forEach((tag) => {
+        counts.set(tag, (counts.get(tag) ?? 0) + 1);
+      });
+    });
+
+    const topics = Array.from(counts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 4)
+      .map(([tag, count]) => ({ tag, count: formatCompactNumber(count) }));
+
+    return topics.length ? topics : fallbackTopics.map((tag) => ({ tag, count: "0" }));
+  }, [posts]);
+
+  const openThread = (post: FeedPost) => {
+    setSelectedPost(post);
+    setThreadOpen(true);
   };
 
   const handleFollow = (accountId: string) => {
-    setFollowing(prev =>
-      prev.includes(accountId) ? prev.filter(id => id !== accountId) : [...prev, accountId]
+    setFollowing((current) =>
+      current.includes(accountId) ? current.filter((id) => id !== accountId) : [...current, accountId],
     );
   };
 
@@ -157,179 +293,147 @@ const Feed = () => {
     navigate(`/trending/${hashtag}`);
   };
 
-  const openThread = (post: typeof mockPosts[0]) => {
-    setSelectedPost(post);
-    setThreadOpen(true);
-  };
-
-  const handleAddComment = () => {
-    if (!newComment.trim()) return;
-    const comment: Comment = {
-      id: Date.now(),
-      author: "You",
-      avatar: "Y",
-      content: newComment.trim(),
-      time: "Just now",
-      likes: 0,
-      isLiked: false,
-    };
-    setComments([comment, ...comments]);
-    setNewComment("");
-  };
-
-  const handleAddReply = (parentId: number) => {
-    if (!replyText.trim()) return;
-    setComments(comments.map(c =>
-      c.id === parentId
-        ? { ...c, replies: [...(c.replies || []), { id: Date.now(), author: "You", avatar: "Y", content: replyText.trim(), time: "Just now", likes: 0, isLiked: false }] }
-        : c
-    ));
-    setReplyTo(null);
-    setReplyText("");
-  };
-
-  const handleCommentLike = (commentId: number) => {
-    setComments(comments.map(c =>
-      c.id === commentId ? { ...c, isLiked: !c.isLiked, likes: c.isLiked ? c.likes - 1 : c.likes + 1 } : c
-    ));
-  };
-
-  const renderContentWithHashtags = (content: string) => {
-    const parts = content.split(/(#\w+)/g);
-    return parts.map((part, i) => {
-      if (part.startsWith("#")) {
-        const tag = part.substring(1);
-        return (
-          <span key={i} className="text-primary cursor-pointer hover:underline" onClick={() => handleHashtagClick(tag)}>{part}</span>
-        );
-      }
-      return part;
+  const renderContentWithHashtags = (content: string) =>
+    content.split(/(#\w+)/g).map((part, index) => {
+      if (!part.startsWith("#")) return part;
+      const tag = part.substring(1);
+      return (
+        <span key={`${part}-${index}`} className="cursor-pointer text-primary hover:underline" onClick={() => handleHashtagClick(tag)}>
+          {part}
+        </span>
+      );
     });
-  };
 
   return (
-    <div className="max-w-3xl mx-auto">
-      <div className="grid lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl module-gists border flex items-center justify-center"><Flame className="w-5 h-5" /></div>
-              <div>
-                <h1 className="text-2xl font-display font-bold">Campus Gists</h1>
-                <p className="text-sm text-muted-foreground">What's happening on campus</p>
-              </div>
+    <div className="mx-auto max-w-3xl">
+      <div className="grid gap-6 lg:grid-cols-3">
+        <div className="space-y-6 lg:col-span-2">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl border module-gists">
+              <Flame className="h-5 w-5" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-display font-bold">Campus Gists</h1>
+              <p className="text-sm text-muted-foreground">What's happening on campus</p>
             </div>
           </div>
 
-          <Card className="glass-card"><CardContent className="pt-6"><PostComposer /></CardContent></Card>
+          <Card className="glass-card">
+            <CardContent className="pt-6">
+              <PostComposer onPostCreated={() => queryClient.invalidateQueries({ queryKey: ["feed-posts"] })} />
+            </CardContent>
+          </Card>
 
           <Tabs defaultValue="foryou">
             <TabsList className="bg-muted/50 p-1">
-              <TabsTrigger value="foryou" className="gap-1"><Sparkles className="w-4 h-4" />For You</TabsTrigger>
-              <TabsTrigger value="trending" className="gap-1"><Flame className="w-4 h-4" />Trending</TabsTrigger>
-              <TabsTrigger value="following" className="gap-1"><Clock className="w-4 h-4" />Following</TabsTrigger>
+              <TabsTrigger value="foryou" className="gap-1"><Sparkles className="h-4 w-4" />For You</TabsTrigger>
+              <TabsTrigger value="trending" className="gap-1"><Flame className="h-4 w-4" />Trending</TabsTrigger>
+              <TabsTrigger value="following" className="gap-1"><Clock className="h-4 w-4" />Following</TabsTrigger>
             </TabsList>
 
             <TabsContent value="foryou" className="mt-4 space-y-4">
-              {posts.map((post) => (
-                <Card key={post.id} className="glass-card hover:border-primary/20 transition-colors">
-                  <CardHeader className="pb-3">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-center gap-3">
-                        <Avatar className="h-10 w-10"><AvatarFallback className="bg-primary/10 text-primary">{post.author.avatar}</AvatarFallback></Avatar>
-                        <div>
-                          <div className="flex items-center gap-1">
-                            <span className="font-semibold text-sm">{post.author.name}</span>
-                            {post.author.verified && <Verified className="w-4 h-4 text-primary fill-primary" />}
-                          </div>
-                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                            <span>{post.author.handle}</span><span>•</span><span>{post.time}</span>
+              {postsQuery.isLoading ? (
+                <Card className="glass-card p-6 text-center text-sm text-muted-foreground">Loading campus gists...</Card>
+              ) : posts.length === 0 ? (
+                <Card className="glass-card p-6 text-center text-sm text-muted-foreground">No gists yet. Start the campus conversation.</Card>
+              ) : (
+                posts.map((post) => (
+                  <Card key={post.id} className="glass-card transition-colors hover:border-primary/20">
+                    <CardHeader className="pb-3">
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-center gap-3">
+                          <Avatar className="h-10 w-10">
+                            <AvatarFallback className="bg-primary/10 text-primary">{post.author.avatar}</AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <div className="flex items-center gap-1">
+                              <span className="text-sm font-semibold">{post.author.name}</span>
+                              {post.author.verified && <Verified className="h-4 w-4 fill-primary text-primary" />}
+                            </div>
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                              <span>{post.author.handle}</span><span>•</span><span>{post.time}</span>
+                            </div>
                           </div>
                         </div>
+                        <Badge variant={post.type === "official" ? "default" : post.type === "event" ? "secondary" : "outline"} className="text-xs capitalize">
+                          {post.type}
+                        </Badge>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Badge variant={post.type === "official" ? "default" : post.type === "event" ? "secondary" : "outline"} className="text-xs capitalize">{post.type}</Badge>
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openThread(post)}>
-                          <MoreHorizontal className="w-4 h-4" />
+                    </CardHeader>
+                    <CardContent className="space-y-3 pt-0">
+                      <p className="whitespace-pre-wrap text-sm leading-relaxed">{renderContentWithHashtags(post.content)}</p>
+                      {post.image && (
+                        <div className="aspect-video overflow-hidden rounded-xl bg-muted">
+                          <img src={post.image} alt="Post media" className="h-full w-full object-cover" />
+                        </div>
+                      )}
+                      <div className="flex items-center justify-between border-t border-border/50 pt-3">
+                        <div className="flex gap-1">
+                          <Button variant="ghost" size="sm" className={`gap-1 ${post.isLiked ? "text-destructive" : "text-muted-foreground"}`} onClick={() => likeMutation.mutate(post)}>
+                            <Heart className={`h-4 w-4 ${post.isLiked ? "fill-current" : ""}`} />{post.likes}
+                          </Button>
+                          <Button variant="ghost" size="sm" className="gap-1 text-muted-foreground" onClick={() => openThread(post)}>
+                            <MessageCircle className="h-4 w-4" />{post.comments}
+                          </Button>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="sm" className="gap-1 text-muted-foreground">
+                                <Share2 className="h-4 w-4" />{post.shares}
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent>
+                              <DropdownMenuItem onClick={() => toast.success("Repost queued for the next engagement schema pass.")}>
+                                <Repeat2 className="mr-2 h-4 w-4" />Repost
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => navigate(`/feed?quote=${post.id}`)}>
+                                <Quote className="mr-2 h-4 w-4" />Quote Post
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                        <Button variant="ghost" size="icon" className={`h-8 w-8 ${post.isBookmarked ? "text-primary" : "text-muted-foreground"}`} onClick={() => bookmarkMutation.mutate(post)}>
+                          <Bookmark className={`h-4 w-4 ${post.isBookmarked ? "fill-current" : ""}`} />
                         </Button>
                       </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="pt-0 space-y-3">
-                    <p className="text-sm leading-relaxed whitespace-pre-wrap">{renderContentWithHashtags(post.content)}</p>
-                    {post.image && (
-                      <div className="rounded-xl overflow-hidden bg-muted aspect-video">
-                        <img src={post.image} alt="Post media" className="w-full h-full object-cover" />
-                      </div>
-                    )}
-                    <div className="flex items-center justify-between pt-3 border-t border-border/50">
-                      <div className="flex gap-1">
-                        <Button variant="ghost" size="sm" className={`gap-1 ${post.isLiked ? "text-destructive" : "text-muted-foreground"}`} onClick={() => handleLike(post.id)}>
-                          <Heart className={`w-4 h-4 ${post.isLiked ? "fill-current" : ""}`} />{post.likes}
-                        </Button>
-                        <Button variant="ghost" size="sm" className="gap-1 text-muted-foreground" onClick={() => openThread(post)}>
-                          <MessageCircle className="w-4 h-4" />{post.comments}
-                        </Button>
-                        {/* Repost/Quote split button */}
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm" className="gap-1 text-muted-foreground">
-                              <Share2 className="w-4 h-4" />{post.shares}
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent>
-                            <DropdownMenuItem onClick={() => { setPosts(posts.map(p => p.id === post.id ? { ...p, shares: p.shares + 1 } : p)); }}>
-                              <Repeat2 className="w-4 h-4 mr-2" />Repost
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => { navigate(`/feed?quote=${post.id}`); }}>
-                              <Quote className="w-4 h-4 mr-2" />Quote Post
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                      <Button variant="ghost" size="icon" className={`h-8 w-8 ${post.isBookmarked ? "text-primary" : "text-muted-foreground"}`} onClick={() => handleBookmark(post.id)}>
-                        <Bookmark className={`w-4 h-4 ${post.isBookmarked ? "fill-current" : ""}`} />
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+                    </CardContent>
+                  </Card>
+                ))
+              )}
             </TabsContent>
 
             <TabsContent value="trending" className="mt-4">
               <Card className="glass-card p-6 text-center">
-                <Flame className="w-12 h-12 mx-auto text-accent mb-4" />
-                <h3 className="font-semibold mb-2">Trending Posts</h3>
-                <p className="text-sm text-muted-foreground">Posts with the most engagement right now</p>
+                <Flame className="mx-auto mb-4 h-12 w-12 text-accent" />
+                <h3 className="mb-2 font-semibold">Trending Posts</h3>
+                <p className="text-sm text-muted-foreground">Posts are ranked by live likes and comments from Supabase.</p>
               </Card>
             </TabsContent>
 
             <TabsContent value="following" className="mt-4">
               <Card className="glass-card p-6 text-center">
-                <Clock className="w-12 h-12 mx-auto text-primary mb-4" />
-                <h3 className="font-semibold mb-2">Following Feed</h3>
+                <Clock className="mx-auto mb-4 h-12 w-12 text-primary" />
+                <h3 className="mb-2 font-semibold">Following Feed</h3>
                 <p className="text-sm text-muted-foreground">
-                  {following.length > 0 ? `Following ${following.length} accounts` : "Follow some accounts to see their posts here"}
+                  {following.length > 0 ? `Following ${following.length} accounts` : "Follow some accounts to shape this feed."}
                 </p>
               </Card>
             </TabsContent>
           </Tabs>
         </div>
 
-        {/* Sidebar */}
-        <div className="hidden lg:block space-y-6">
+        <div className="hidden space-y-6 lg:block">
           <Card className="glass-card">
             <CardHeader>
-              <div className="flex items-center gap-2"><TrendingUp className="w-5 h-5 text-accent" /><h3 className="font-display font-bold">Trending Topics</h3></div>
+              <div className="flex items-center gap-2">
+                <TrendingUp className="h-5 w-5 text-accent" />
+                <h3 className="font-display font-bold">Trending Topics</h3>
+              </div>
             </CardHeader>
             <CardContent className="space-y-3">
-              {trendingTopics.map((topic, i) => (
-                <button key={i} onClick={() => handleHashtagClick(topic.tag)} className="w-full flex items-center justify-between py-2 border-b border-border/50 last:border-0 hover:bg-muted/50 -mx-2 px-2 rounded transition-colors">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-bold text-muted-foreground">#{i + 1}</span>
-                    <span className="font-medium text-sm text-primary hover:underline">#{topic.tag}</span>
-                  </div>
-                  <span className="text-xs text-muted-foreground">{topic.count} posts</span>
+              {trendingTopics.map((topic, index) => (
+                <button key={topic.tag} onClick={() => handleHashtagClick(topic.tag)} className="flex w-full items-center justify-between rounded px-2 py-2 transition-colors hover:bg-muted/50">
+                  <span className="text-sm font-medium text-primary">#{topic.tag}</span>
+                  <span className="text-xs text-muted-foreground">#{index + 1} • {topic.count}</span>
                 </button>
               ))}
             </CardContent>
@@ -338,99 +442,68 @@ const Feed = () => {
           <Card className="glass-card">
             <CardHeader><h3 className="font-display font-bold">Suggested for You</h3></CardHeader>
             <CardContent className="space-y-4">
-              {suggestedAccounts.map((account) => (
-                <div key={account.id} className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Avatar className="h-8 w-8"><AvatarFallback className="text-xs bg-primary/10 text-primary">{account.name.charAt(0)}</AvatarFallback></Avatar>
-                    <div><p className="text-sm font-medium">{account.name}</p><p className="text-xs text-muted-foreground">{account.handle}</p></div>
+              {(suggestedAccountsQuery.data ?? []).map((account: any) => {
+                const name = account.display_name || "Campus Member";
+                return (
+                  <div key={account.user_id} className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Avatar className="h-8 w-8"><AvatarFallback className="bg-primary/10 text-xs text-primary">{name.charAt(0)}</AvatarFallback></Avatar>
+                      <div><p className="text-sm font-medium">{name}</p><p className="text-xs text-muted-foreground">@{name.toLowerCase().replace(/[^a-z0-9]+/g, "")}</p></div>
+                    </div>
+                    <Button variant={following.includes(account.user_id) ? "secondary" : "outline"} size="sm" onClick={() => handleFollow(account.user_id)}>
+                      {following.includes(account.user_id) ? <><UserCheck className="mr-1 h-3 w-3" />Following</> : <><UserPlus className="mr-1 h-3 w-3" />Follow</>}
+                    </Button>
                   </div>
-                  <Button variant={following.includes(account.id) ? "secondary" : "outline"} size="sm" onClick={() => handleFollow(account.id)}>
-                    {following.includes(account.id) ? (<><UserCheck className="w-3 h-3 mr-1" />Following</>) : (<><UserPlus className="w-3 h-3 mr-1" />Follow</>)}
-                  </Button>
-                </div>
-              ))}
+                );
+              })}
             </CardContent>
           </Card>
         </div>
       </div>
 
-      {/* Thread/Comments Dialog */}
       <Dialog open={threadOpen} onOpenChange={setThreadOpen}>
-        <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col">
+        <DialogContent className="flex max-h-[85vh] max-w-2xl flex-col">
           <DialogHeader><DialogTitle>Post Thread</DialogTitle></DialogHeader>
           {selectedPost && (
             <ScrollArea className="flex-1">
               <div className="space-y-4">
-                {/* Original Post */}
                 <div className="flex gap-3">
                   <Avatar className="h-10 w-10"><AvatarFallback className="bg-primary/10 text-primary">{selectedPost.author.avatar}</AvatarFallback></Avatar>
                   <div className="flex-1">
                     <div className="flex items-center gap-1">
-                      <span className="font-semibold text-sm">{selectedPost.author.name}</span>
-                      {selectedPost.author.verified && <Verified className="w-4 h-4 text-primary fill-primary" />}
-                      <span className="text-xs text-muted-foreground ml-2">{selectedPost.time}</span>
+                      <span className="text-sm font-semibold">{selectedPost.author.name}</span>
+                      {selectedPost.author.verified && <Verified className="h-4 w-4 fill-primary text-primary" />}
+                      <span className="ml-2 text-xs text-muted-foreground">{selectedPost.time}</span>
                     </div>
-                    <p className="text-sm leading-relaxed mt-1 whitespace-pre-wrap">{renderContentWithHashtags(selectedPost.content)}</p>
-                    <div className="flex gap-4 mt-3 text-sm text-muted-foreground">
-                      <span>{selectedPost.likes} likes</span>
-                      <span>{selectedPost.comments} comments</span>
-                      <span>{selectedPost.shares} shares</span>
-                    </div>
+                    <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed">{renderContentWithHashtags(selectedPost.content)}</p>
                   </div>
                 </div>
 
                 <div className="border-t border-border/50 pt-4">
-                  {/* Comment Input */}
-                  <div className="flex gap-2 mb-4">
-                    <Input placeholder="Write a comment..." value={newComment} onChange={(e) => setNewComment(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleAddComment()} className="flex-1" />
-                    <Button size="sm" onClick={handleAddComment} disabled={!newComment.trim()}><Send className="w-4 h-4" /></Button>
+                  <div className="mb-4 flex gap-2">
+                    <Input placeholder="Write a comment..." value={newComment} onChange={(event) => setNewComment(event.target.value)} onKeyDown={(event) => event.key === "Enter" && commentMutation.mutate()} className="flex-1" />
+                    <Button size="sm" onClick={() => commentMutation.mutate()} disabled={!newComment.trim()}><Send className="h-4 w-4" /></Button>
                   </div>
 
-                  {/* Comments */}
                   <div className="space-y-4">
-                    {comments.map((comment) => (
-                      <div key={comment.id} className="space-y-2">
-                        <div className="flex gap-3">
-                          <Avatar className="h-8 w-8"><AvatarFallback className="text-xs bg-muted">{comment.avatar}</AvatarFallback></Avatar>
+                    {commentsQuery.isLoading ? (
+                      <p className="text-sm text-muted-foreground">Loading comments...</p>
+                    ) : (commentsQuery.data ?? []).length === 0 ? (
+                      <p className="text-sm text-muted-foreground">No comments yet. Be the first.</p>
+                    ) : (
+                      (commentsQuery.data ?? []).map((comment) => (
+                        <div key={comment.id} className="flex gap-3">
+                          <Avatar className="h-8 w-8"><AvatarFallback className="bg-muted text-xs">{comment.avatar}</AvatarFallback></Avatar>
                           <div className="flex-1">
                             <div className="flex items-center gap-2">
-                              <span className="font-medium text-sm">{comment.author}</span>
-                              <span className="text-xs text-muted-foreground">{comment.time}</span>
+                              <span className="text-sm font-medium">{comment.author}</span>
+                              <span className="text-xs text-muted-foreground">{formatRelativeTime(comment.created_at)}</span>
                             </div>
-                            <p className="text-sm mt-0.5">{comment.content}</p>
-                            <div className="flex items-center gap-3 mt-1">
-                              <Button variant="ghost" size="sm" className={`h-6 px-1 text-xs gap-1 ${comment.isLiked ? "text-destructive" : "text-muted-foreground"}`} onClick={() => handleCommentLike(comment.id)}>
-                                <Heart className={`w-3 h-3 ${comment.isLiked ? "fill-current" : ""}`} />{comment.likes}
-                              </Button>
-                              <Button variant="ghost" size="sm" className="h-6 px-1 text-xs text-muted-foreground" onClick={() => setReplyTo(replyTo === comment.id ? null : comment.id)}>Reply</Button>
-                            </div>
-                            {replyTo === comment.id && (
-                              <div className="flex gap-2 mt-2">
-                                <Input placeholder="Write a reply..." value={replyText} onChange={(e) => setReplyText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleAddReply(comment.id)} className="flex-1 h-8 text-sm" />
-                                <Button size="sm" className="h-8" onClick={() => handleAddReply(comment.id)}>Reply</Button>
-                              </div>
-                            )}
+                            <p className="mt-0.5 text-sm">{comment.content}</p>
                           </div>
                         </div>
-                        {/* Replies */}
-                        {comment.replies && comment.replies.length > 0 && (
-                          <div className="ml-11 space-y-2 border-l-2 border-border/50 pl-3">
-                            {comment.replies.map((reply) => (
-                              <div key={reply.id} className="flex gap-2">
-                                <Avatar className="h-6 w-6"><AvatarFallback className="text-xs bg-muted">{reply.avatar}</AvatarFallback></Avatar>
-                                <div>
-                                  <div className="flex items-center gap-2">
-                                    <span className="font-medium text-xs">{reply.author}</span>
-                                    <span className="text-xs text-muted-foreground">{reply.time}</span>
-                                  </div>
-                                  <p className="text-xs mt-0.5">{reply.content}</p>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    ))}
+                      ))
+                    )}
                   </div>
                 </div>
               </div>

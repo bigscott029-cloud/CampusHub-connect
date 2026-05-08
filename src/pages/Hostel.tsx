@@ -1,17 +1,42 @@
-import { useState } from "react";
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { useQuery } from "@tanstack/react-query";
+import {
+  Camera,
+  Car,
+  ChevronLeft,
+  ChevronRight,
+  Droplets,
+  Eye,
+  Filter,
+  Heart,
+  Home,
+  MapPin,
+  MessageCircle,
+  Phone,
+  Plus,
+  Search,
+  Shield,
+  Star,
+  Users,
+  Verified,
+  Wifi,
+  Zap,
+} from "lucide-react";
+
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Slider } from "@/components/ui/slider";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -19,31 +44,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
-import {
-  Home,
-  Search,
-  Filter,
-  MapPin,
-  Star,
-  Heart,
-  MessageCircle,
-  ChevronLeft,
-  ChevronRight,
-  Users,
-  Wifi,
-  Zap,
-  Droplets,
-  Shield,
-  Car,
-  Plus,
-  Eye,
-  Verified,
-  Camera,
-  Phone,
-  X,
-} from "lucide-react";
+import { Slider } from "@/components/ui/slider";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { supabase } from "@/integrations/supabase/client";
+import { formatCurrency } from "@/lib/utils";
 
 const amenityIcons: Record<string, any> = {
   wifi: Wifi,
@@ -53,116 +57,147 @@ const amenityIcons: Record<string, any> = {
   parking: Car,
 };
 
-const mockHostels = [
-  {
-    id: 1,
-    title: "Spacious Self-Contain Near Campus Gate",
-    type: "Self-Contain",
-    price: 350000,
-    location: "Campus Gate Area",
-    distance: "2 min walk",
-    images: ["/placeholder.svg", "/placeholder.svg", "/placeholder.svg"],
-    amenities: ["wifi", "power", "water", "security"],
-    rating: 4.8,
-    reviews: 24,
-    views: 456,
-    verified: true,
-    available: true,
-    landlord: { name: "Mrs. Johnson", phone: "+234 801 234 5678" },
-    postedDays: 2,
-  },
-  {
-    id: 2,
-    title: "2-Bedroom Flat - Fully Furnished",
-    type: "Flat",
-    price: 550000,
-    location: "Off Campus Road",
-    distance: "5 min walk",
-    images: ["/placeholder.svg", "/placeholder.svg"],
-    amenities: ["wifi", "power", "water", "security", "parking"],
-    rating: 4.5,
-    reviews: 18,
-    views: 234,
-    verified: true,
-    available: true,
-    landlord: { name: "Mr. Adeyemi", phone: "+234 802 345 6789" },
-    postedDays: 5,
-  },
-  {
-    id: 3,
-    title: "Single Room in Shared Apartment",
-    type: "Single Room",
-    price: 180000,
-    location: "Student Village",
-    distance: "10 min walk",
-    images: ["/placeholder.svg"],
-    amenities: ["wifi", "power", "water"],
-    rating: 4.2,
-    reviews: 12,
-    views: 189,
-    verified: false,
-    available: true,
-    landlord: { name: "David O.", phone: "+234 803 456 7890" },
-    postedDays: 1,
-  },
-];
+interface HostelListing {
+  id: string;
+  title: string;
+  type: string;
+  price: number;
+  pricePeriod: string;
+  location: string;
+  images: string[];
+  amenities: string[];
+  rating: number;
+  reviews: number;
+  views: number;
+  verified: boolean;
+  landlord: { id: string; name: string; phone: string };
+}
 
-const mockRoommateRequests = [
-  {
-    id: 1,
-    name: "Tunde A.",
-    gender: "Male",
-    level: "400L",
-    department: "Computer Science",
-    budget: "200K - 300K",
-    preferences: ["Non-smoker", "Quiet", "Clean"],
-    avatar: "T",
-  },
-  {
-    id: 2,
-    name: "Amaka O.",
-    gender: "Female",
-    level: "300L",
-    department: "Medicine",
-    budget: "250K - 400K",
-    preferences: ["Early riser", "Studious", "Friendly"],
-    avatar: "A",
-  },
-];
+interface RoommateRequest {
+  id: string;
+  name: string;
+  budget: string;
+  preferences: string[];
+  avatar: string;
+  title: string;
+  location: string;
+}
+
+const placeholderImage = "/placeholder.svg";
 
 const Hostel = () => {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
   const [priceRange, setPriceRange] = useState([100000, 600000]);
-  const [favorites, setFavorites] = useState<number[]>([]);
-  const [currentImageIndex, setCurrentImageIndex] = useState<Record<number, number>>({});
+  const [favorites, setFavorites] = useState<string[]>([]);
+  const [currentImageIndex, setCurrentImageIndex] = useState<Record<string, number>>({});
   const [phoneDialogOpen, setPhoneDialogOpen] = useState(false);
   const [selectedPhone, setSelectedPhone] = useState({ name: "", phone: "" });
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [filters, setFilters] = useState({
-    type: "",
+    type: "all",
     amenities: [] as string[],
     verified: false,
   });
 
-  const toggleFavorite = (id: number) => {
-    setFavorites(prev => 
-      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
-    );
+  const hostelsQuery = useQuery({
+    queryKey: ["hostel-listings"],
+    queryFn: async (): Promise<HostelListing[]> => {
+      const { data: listings, error } = await (supabase as any)
+        .from("hostel_listings")
+        .select("id, user_id, title, price, price_period, location, hostel_type, amenities, images, phone_number, views_count, is_verified")
+        .eq("status", "approved")
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+
+      const userIds = Array.from(new Set((listings ?? []).map((listing: any) => listing.user_id)));
+      const { data: profiles } = userIds.length
+        ? await (supabase as any).from("profiles").select("user_id, display_name, verified_badge").in("user_id", userIds)
+        : { data: [] };
+      const profileMap = new Map((profiles ?? []).map((profile: any) => [profile.user_id, profile]));
+
+      return (listings ?? []).map((listing: any) => {
+        const profile = profileMap.get(listing.user_id);
+        const landlordName = profile?.display_name || "Campus Agent";
+        const images = listing.images?.length ? listing.images : [placeholderImage];
+
+        return {
+          id: listing.id,
+          title: listing.title,
+          type: listing.hostel_type,
+          price: Number(listing.price ?? 0),
+          pricePeriod: listing.price_period || "yearly",
+          location: listing.location,
+          images,
+          amenities: listing.amenities ?? [],
+          rating: 0,
+          reviews: 0,
+          views: listing.views_count ?? 0,
+          verified: Boolean(listing.is_verified || profile?.verified_badge),
+          landlord: {
+            id: listing.user_id,
+            name: landlordName,
+            phone: listing.phone_number || "",
+          },
+        };
+      });
+    },
+  });
+
+  const roommateQuery = useQuery({
+    queryKey: ["roommate-requests"],
+    queryFn: async (): Promise<RoommateRequest[]> => {
+      const { data: requests, error } = await supabase
+        .from("roommate_requests")
+        .select("id, user_id, title, budget_min, budget_max, preferred_location, preferences")
+        .eq("status", "approved")
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+
+      const userIds = Array.from(new Set((requests ?? []).map((request) => request.user_id)));
+      const { data: profiles } = userIds.length
+        ? await (supabase as any).from("profiles").select("user_id, display_name").in("user_id", userIds)
+        : { data: [] };
+      const profileMap = new Map((profiles ?? []).map((profile: any) => [profile.user_id, profile]));
+
+      return (requests ?? []).map((request) => {
+        const name = profileMap.get(request.user_id)?.display_name || "Campus Member";
+        return {
+          id: request.id,
+          name,
+          title: request.title,
+          location: request.preferred_location || "Flexible",
+          budget: [request.budget_min, request.budget_max].filter(Boolean).map((value) => formatCurrency(Number(value))).join(" - ") || "Open budget",
+          preferences: request.preferences ? request.preferences.split(",").map((item) => item.trim()).filter(Boolean) : [],
+          avatar: name.charAt(0).toUpperCase(),
+        };
+      });
+    },
+  });
+
+  const filteredHostels = useMemo(() => {
+    return (hostelsQuery.data ?? []).filter((hostel) => {
+      const matchesSearch = `${hostel.title} ${hostel.location} ${hostel.type}`.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesPrice = hostel.price >= priceRange[0] && hostel.price <= priceRange[1];
+      const matchesType = filters.type === "all" || hostel.type === filters.type;
+      const matchesVerified = !filters.verified || hostel.verified;
+      const matchesAmenities = filters.amenities.length === 0 || filters.amenities.every((amenity) => hostel.amenities.includes(amenity));
+      return matchesSearch && matchesPrice && matchesType && matchesVerified && matchesAmenities;
+    });
+  }, [filters, hostelsQuery.data, priceRange, searchQuery]);
+
+  const toggleFavorite = (id: string) => {
+    setFavorites((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
   };
 
-  const nextImage = (hostelId: number, maxImages: number) => {
-    setCurrentImageIndex(prev => ({
-      ...prev,
-      [hostelId]: ((prev[hostelId] || 0) + 1) % maxImages
-    }));
+  const nextImage = (hostelId: string, maxImages: number) => {
+    setCurrentImageIndex((current) => ({ ...current, [hostelId]: ((current[hostelId] || 0) + 1) % maxImages }));
   };
 
-  const prevImage = (hostelId: number, maxImages: number) => {
-    setCurrentImageIndex(prev => ({
-      ...prev,
-      [hostelId]: ((prev[hostelId] || 0) - 1 + maxImages) % maxImages
-    }));
+  const prevImage = (hostelId: string, maxImages: number) => {
+    setCurrentImageIndex((current) => ({ ...current, [hostelId]: ((current[hostelId] || 0) - 1 + maxImages) % maxImages }));
   };
 
   const handleCall = (landlord: { name: string; phone: string }) => {
@@ -170,30 +205,16 @@ const Hostel = () => {
     setPhoneDialogOpen(true);
   };
 
-  const handleContact = (hostel: typeof mockHostels[0]) => {
-    navigate(`/messages?to=${hostel.landlord.name}&ref=hostel:${hostel.id}&message=Hi, I'm interested in your listing: "${hostel.title}"`);
+  const handleContact = (hostel: HostelListing) => {
+    navigate(`/messages?to=${hostel.landlord.id}&ref=hostel:${hostel.id}&message=Hi, I'm interested in your listing: "${hostel.title}"`);
   };
-
-  const filteredHostels = mockHostels.filter(hostel => {
-    const matchesSearch = hostel.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         hostel.location.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         hostel.type.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesPrice = hostel.price >= priceRange[0] && hostel.price <= priceRange[1];
-    const matchesType = !filters.type || hostel.type === filters.type;
-    const matchesVerified = !filters.verified || hostel.verified;
-    const matchesAmenities = filters.amenities.length === 0 || 
-                            filters.amenities.every(a => hostel.amenities.includes(a));
-    
-    return matchesSearch && matchesPrice && matchesType && matchesVerified && matchesAmenities;
-  });
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl module-hostel border flex items-center justify-center">
-            <Home className="w-5 h-5" />
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl border module-hostel">
+            <Home className="h-5 w-5" />
           </div>
           <div>
             <h1 className="text-2xl font-display font-bold">Hostel Hub</h1>
@@ -201,246 +222,135 @@ const Hostel = () => {
           </div>
         </div>
         <Button variant="hero" onClick={() => navigate("/hostel/create")}>
-          <Plus className="w-4 h-4 mr-1" />
-          List Your Space
+          <Plus className="mr-1 h-4 w-4" />List Your Space
         </Button>
       </div>
 
       <Tabs defaultValue="listings" className="space-y-6">
         <TabsList className="bg-muted/50 p-1">
-          <TabsTrigger value="listings" className="gap-1">
-            <Home className="w-4 h-4" />
-            Hostel Listings
-          </TabsTrigger>
-          <TabsTrigger value="roommates" className="gap-1">
-            <Users className="w-4 h-4" />
-            Find Roommates
-          </TabsTrigger>
+          <TabsTrigger value="listings" className="gap-1"><Home className="h-4 w-4" />Hostel Listings</TabsTrigger>
+          <TabsTrigger value="roommates" className="gap-1"><Users className="h-4 w-4" />Find Roommates</TabsTrigger>
         </TabsList>
 
         <TabsContent value="listings" className="space-y-6">
-          {/* Search & Filters */}
           <Card className="glass-card">
             <CardContent className="py-4">
-              <div className="flex flex-col lg:flex-row gap-4">
+              <div className="flex flex-col gap-4 lg:flex-row">
                 <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search by location, type..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-10"
-                  />
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input placeholder="Search by location, type..." value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} className="pl-10" />
                 </div>
-                <div className="flex items-center gap-4 flex-wrap">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-muted-foreground whitespace-nowrap">Price:</span>
-                    <span className="text-sm font-medium">
-                      ₦{(priceRange[0] / 1000).toFixed(0)}K - ₦{(priceRange[1] / 1000).toFixed(0)}K
-                    </span>
-                  </div>
-                  <Slider
-                    value={priceRange}
-                    onValueChange={setPriceRange}
-                    max={1000000}
-                    min={50000}
-                    step={10000}
-                    className="w-40"
-                  />
+                <div className="flex flex-wrap items-center gap-4">
+                  <span className="text-sm font-medium">{formatCurrency(priceRange[0])} - {formatCurrency(priceRange[1])}</span>
+                  <Slider value={priceRange} onValueChange={setPriceRange} max={1000000} min={50000} step={10000} className="w-40" />
                   <Button variant="outline" className="gap-2" onClick={() => setFiltersOpen(true)}>
-                    <Filter className="w-4 h-4" />
-                    More Filters
+                    <Filter className="h-4 w-4" />More Filters
                   </Button>
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          {/* Listings Grid */}
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
             {filteredHostels.map((hostel) => (
-              <Card 
-                key={hostel.id} 
-                className="glass-card overflow-hidden hover-lift group cursor-pointer"
-                onClick={() => navigate(`/hostel/${hostel.id}`)}
-              >
-                {/* Image Carousel */}
-                <div className="relative aspect-[4/3] bg-muted" onClick={(e) => e.stopPropagation()}>
-                  <img
-                    src={hostel.images[currentImageIndex[hostel.id] || 0]}
-                    alt={hostel.title}
-                    className="w-full h-full object-cover"
-                  />
+              <Card key={hostel.id} className="glass-card hover-lift group cursor-pointer overflow-hidden" onClick={() => navigate(`/hostel/${hostel.id}`)}>
+                <div className="relative aspect-[4/3] bg-muted" onClick={(event) => event.stopPropagation()}>
+                  <img src={hostel.images[currentImageIndex[hostel.id] || 0]} alt={hostel.title} className="h-full w-full object-cover" />
                   {hostel.images.length > 1 && (
                     <>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="absolute left-2 top-1/2 -translate-y-1/2 bg-background/80 h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
-                        onClick={(e) => { e.stopPropagation(); prevImage(hostel.id, hostel.images.length); }}
-                      >
-                        <ChevronLeft className="w-4 h-4" />
+                      <Button variant="ghost" size="icon" className="absolute left-2 top-1/2 h-8 w-8 -translate-y-1/2 bg-background/80 opacity-0 transition-opacity group-hover:opacity-100" onClick={(event) => { event.stopPropagation(); prevImage(hostel.id, hostel.images.length); }}>
+                        <ChevronLeft className="h-4 w-4" />
                       </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="absolute right-2 top-1/2 -translate-y-1/2 bg-background/80 h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
-                        onClick={(e) => { e.stopPropagation(); nextImage(hostel.id, hostel.images.length); }}
-                      >
-                        <ChevronRight className="w-4 h-4" />
+                      <Button variant="ghost" size="icon" className="absolute right-2 top-1/2 h-8 w-8 -translate-y-1/2 bg-background/80 opacity-0 transition-opacity group-hover:opacity-100" onClick={(event) => { event.stopPropagation(); nextImage(hostel.id, hostel.images.length); }}>
+                        <ChevronRight className="h-4 w-4" />
                       </Button>
-                      <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1">
-                        {hostel.images.map((_, i) => (
-                          <div
-                            key={i}
-                            className={`w-1.5 h-1.5 rounded-full ${
-                              i === (currentImageIndex[hostel.id] || 0)
-                                ? "bg-primary"
-                                : "bg-primary/30"
-                            }`}
-                          />
-                        ))}
-                      </div>
                     </>
                   )}
-                  {/* Badges */}
-                  <div className="absolute top-2 left-2 flex gap-2">
-                    {hostel.verified && (
-                      <Badge className="bg-success text-success-foreground">
-                        <Verified className="w-3 h-3 mr-1" />
-                        Verified
-                      </Badge>
-                    )}
-                    <Badge variant="secondary">
-                      <Camera className="w-3 h-3 mr-1" />
-                      {hostel.images.length}
-                    </Badge>
+                  <div className="absolute left-2 top-2 flex gap-2">
+                    {hostel.verified && <Badge className="bg-success text-success-foreground"><Verified className="mr-1 h-3 w-3" />Verified</Badge>}
+                    <Badge variant="secondary"><Camera className="mr-1 h-3 w-3" />{hostel.images.length}</Badge>
                   </div>
-                  {/* Favorite Button */}
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="absolute top-2 right-2 bg-background/80 h-8 w-8"
-                    onClick={(e) => { e.stopPropagation(); toggleFavorite(hostel.id); }}
-                  >
-                    <Heart className={`w-4 h-4 ${favorites.includes(hostel.id) ? "fill-destructive text-destructive" : ""}`} />
+                  <Button variant="ghost" size="icon" className="absolute right-2 top-2 h-8 w-8 bg-background/80" onClick={(event) => { event.stopPropagation(); toggleFavorite(hostel.id); }}>
+                    <Heart className={`h-4 w-4 ${favorites.includes(hostel.id) ? "fill-destructive text-destructive" : ""}`} />
                   </Button>
                 </div>
 
                 <CardContent className="p-4">
-                  <div className="flex items-start justify-between mb-2">
+                  <div className="mb-2 flex items-start justify-between">
                     <Badge variant="outline">{hostel.type}</Badge>
                     <div className="flex items-center gap-1">
-                      <Star className="w-4 h-4 text-warning fill-warning" />
-                      <span className="font-semibold text-sm">{hostel.rating}</span>
-                      <span className="text-xs text-muted-foreground">({hostel.reviews})</span>
+                      <Star className="h-4 w-4 text-warning" />
+                      <span className="text-sm font-semibold">{hostel.rating || "New"}</span>
                     </div>
                   </div>
-
-                  <h3 className="font-semibold text-sm line-clamp-2 mb-2">{hostel.title}</h3>
-
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground mb-3">
-                    <MapPin className="w-4 h-4 shrink-0" />
-                    <span>{hostel.location}</span>
-                    <span>•</span>
-                    <span>{hostel.distance}</span>
+                  <h3 className="mb-2 line-clamp-2 text-sm font-semibold">{hostel.title}</h3>
+                  <div className="mb-3 flex items-center gap-2 text-sm text-muted-foreground">
+                    <MapPin className="h-4 w-4 shrink-0" /><span>{hostel.location}</span>
                   </div>
-
-                  {/* Amenities */}
-                  <div className="flex gap-2 mb-4">
+                  <div className="mb-4 flex gap-2">
                     {hostel.amenities.slice(0, 4).map((amenity) => {
-                      const Icon = amenityIcons[amenity];
+                      const Icon = amenityIcons[amenity] || Home;
                       return (
-                        <div key={amenity} className="w-8 h-8 rounded-md bg-muted flex items-center justify-center" title={amenity}>
-                          <Icon className="w-4 h-4 text-muted-foreground" />
+                        <div key={amenity} className="flex h-8 w-8 items-center justify-center rounded-md bg-muted" title={amenity}>
+                          <Icon className="h-4 w-4 text-muted-foreground" />
                         </div>
                       );
                     })}
-                    {hostel.amenities.length > 4 && (
-                      <div className="w-8 h-8 rounded-md bg-muted flex items-center justify-center text-xs font-medium">
-                        +{hostel.amenities.length - 4}
-                      </div>
-                    )}
                   </div>
-
-                  {/* Price & Actions */}
-                  <div className="flex items-center justify-between pt-3 border-t border-border/50" onClick={(e) => e.stopPropagation()}>
+                  <div className="flex items-center justify-between border-t border-border/50 pt-3" onClick={(event) => event.stopPropagation()}>
                     <div>
                       <p className="text-xl font-bold text-primary">
-                        ₦{(hostel.price / 1000).toFixed(0)}K
-                        <span className="text-sm font-normal text-muted-foreground">/year</span>
+                        {formatCurrency(hostel.price)}
+                        <span className="text-sm font-normal text-muted-foreground">/{hostel.pricePeriod}</span>
                       </p>
-                      <p className="text-xs text-muted-foreground flex items-center gap-1">
-                        <Eye className="w-3 h-3" />
-                        {hostel.views} views
-                      </p>
+                      <p className="flex items-center gap-1 text-xs text-muted-foreground"><Eye className="h-3 w-3" />{hostel.views} views</p>
                     </div>
                     <div className="flex gap-2">
-                      <Button variant="outline" size="sm" onClick={() => handleCall(hostel.landlord)}>
-                        <Phone className="w-4 h-4" />
-                      </Button>
-                      <Button variant="hero" size="sm" onClick={() => handleContact(hostel)}>
-                        <MessageCircle className="w-4 h-4 mr-1" />
-                        Contact
-                      </Button>
+                      <Button variant="outline" size="sm" disabled={!hostel.landlord.phone} onClick={() => handleCall(hostel.landlord)}><Phone className="h-4 w-4" /></Button>
+                      <Button variant="hero" size="sm" onClick={() => handleContact(hostel)}><MessageCircle className="mr-1 h-4 w-4" />Contact</Button>
                     </div>
                   </div>
                 </CardContent>
               </Card>
             ))}
           </div>
+
+          {!hostelsQuery.isLoading && filteredHostels.length === 0 && (
+            <Card className="glass-card p-8 text-center text-sm text-muted-foreground">No approved hostel listings match your filters.</Card>
+          )}
         </TabsContent>
 
-        {/* Roommates Tab */}
         <TabsContent value="roommates" className="space-y-6">
-          <div className="flex justify-between items-center">
+          <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold">Looking for Roommates</h2>
-            <Button variant="outline" onClick={() => navigate("/hostel/roommate")}>
-              <Plus className="w-4 h-4 mr-1" />
-              Post Request
-            </Button>
+            <Button variant="outline" onClick={() => navigate("/hostel/roommate")}><Plus className="mr-1 h-4 w-4" />Post Request</Button>
           </div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {mockRoommateRequests.map((request) => (
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {(roommateQuery.data ?? []).map((request) => (
               <Card key={request.id} className="glass-card">
                 <CardContent className="p-6">
-                  <div className="flex items-center gap-4 mb-4">
-                    <div className="w-14 h-14 rounded-full gradient-bg flex items-center justify-center">
+                  <div className="mb-4 flex items-center gap-4">
+                    <div className="flex h-14 w-14 items-center justify-center rounded-full gradient-bg">
                       <span className="text-xl font-bold text-primary-foreground">{request.avatar}</span>
                     </div>
                     <div>
                       <h3 className="font-semibold">{request.name}</h3>
-                      <p className="text-sm text-muted-foreground">{request.level} • {request.department}</p>
+                      <p className="text-sm text-muted-foreground">{request.title}</p>
                     </div>
                   </div>
-
                   <div className="space-y-3">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-muted-foreground">Gender</span>
-                      <Badge variant="outline">{request.gender}</Badge>
-                    </div>
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-muted-foreground">Budget</span>
-                      <span className="font-medium">₦{request.budget}</span>
-                    </div>
+                    <div className="flex items-center justify-between text-sm"><span className="text-muted-foreground">Location</span><Badge variant="outline">{request.location}</Badge></div>
+                    <div className="flex items-center justify-between text-sm"><span className="text-muted-foreground">Budget</span><span className="font-medium">{request.budget}</span></div>
                     <div>
                       <span className="text-sm text-muted-foreground">Preferences:</span>
-                      <div className="flex flex-wrap gap-1 mt-2">
-                        {request.preferences.map((pref, i) => (
-                          <Badge key={i} variant="secondary" className="text-xs">{pref}</Badge>
-                        ))}
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        {(request.preferences.length ? request.preferences : ["Open"]).map((pref) => <Badge key={pref} variant="secondary" className="text-xs">{pref}</Badge>)}
                       </div>
                     </div>
                   </div>
-
-                  <Button 
-                    variant="hero" 
-                    className="w-full mt-4"
-                    onClick={() => navigate(`/messages?to=${request.name}&message=Hi, I saw your roommate request and I'm interested!`)}
-                  >
-                    <MessageCircle className="w-4 h-4 mr-1" />
-                    Send Message
+                  <Button variant="hero" className="mt-4 w-full" onClick={() => navigate(`/messages?message=Hi, I saw your roommate request and I'm interested!`)}>
+                    <MessageCircle className="mr-1 h-4 w-4" />Send Message
                   </Button>
                 </CardContent>
               </Card>
@@ -449,44 +359,31 @@ const Hostel = () => {
         </TabsContent>
       </Tabs>
 
-      {/* Phone Dialog */}
       <Dialog open={phoneDialogOpen} onOpenChange={setPhoneDialogOpen}>
         <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Contact {selectedPhone.name}</DialogTitle>
-          </DialogHeader>
+          <DialogHeader><DialogTitle>Contact {selectedPhone.name}</DialogTitle></DialogHeader>
           <div className="space-y-4">
-            <div className="p-4 rounded-lg bg-muted/50 text-center">
-              <p className="text-2xl font-mono font-bold">{selectedPhone.phone}</p>
+            <div className="rounded-lg bg-muted/50 p-4 text-center">
+              <p className="text-2xl font-bold">{selectedPhone.phone || "No phone provided"}</p>
             </div>
             <div className="flex gap-2">
-              <Button className="flex-1" onClick={() => window.open(`tel:${selectedPhone.phone}`)}>
-                <Phone className="w-4 h-4 mr-2" />
-                Dial Now
-              </Button>
-              <Button variant="outline" className="flex-1" onClick={() => navigator.clipboard.writeText(selectedPhone.phone)}>
-                Copy Number
-              </Button>
+              <Button className="flex-1" disabled={!selectedPhone.phone} onClick={() => window.open(`tel:${selectedPhone.phone}`)}><Phone className="mr-2 h-4 w-4" />Dial Now</Button>
+              <Button variant="outline" className="flex-1" disabled={!selectedPhone.phone} onClick={() => navigator.clipboard.writeText(selectedPhone.phone)}>Copy Number</Button>
             </div>
           </div>
         </DialogContent>
       </Dialog>
 
-      {/* Filters Dialog */}
       <Dialog open={filtersOpen} onOpenChange={setFiltersOpen}>
         <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Filter Listings</DialogTitle>
-          </DialogHeader>
+          <DialogHeader><DialogTitle>Filter Listings</DialogTitle></DialogHeader>
           <div className="space-y-6">
             <div>
               <Label>Accommodation Type</Label>
-              <Select value={filters.type} onValueChange={(v) => setFilters({ ...filters, type: v })}>
-                <SelectTrigger>
-                  <SelectValue placeholder="All types" />
-                </SelectTrigger>
+              <Select value={filters.type} onValueChange={(value) => setFilters({ ...filters, type: value })}>
+                <SelectTrigger><SelectValue placeholder="All types" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All types</SelectItem>
+                  <SelectItem value="all">All types</SelectItem>
                   <SelectItem value="Self-Contain">Self-Contain</SelectItem>
                   <SelectItem value="Single Room">Single Room</SelectItem>
                   <SelectItem value="Flat">Flat</SelectItem>
@@ -499,24 +396,9 @@ const Hostel = () => {
               <Label className="mb-3 block">Amenities</Label>
               <div className="grid grid-cols-2 gap-3">
                 {Object.entries(amenityIcons).map(([key, Icon]) => (
-                  <label
-                    key={key}
-                    className={`flex items-center gap-2 p-3 rounded-lg border cursor-pointer ${
-                      filters.amenities.includes(key) ? "border-primary bg-primary/5" : "border-border"
-                    }`}
-                  >
-                    <Checkbox
-                      checked={filters.amenities.includes(key)}
-                      onCheckedChange={(checked) => {
-                        setFilters({
-                          ...filters,
-                          amenities: checked
-                            ? [...filters.amenities, key]
-                            : filters.amenities.filter((a) => a !== key),
-                        });
-                      }}
-                    />
-                    <Icon className="w-4 h-4" />
+                  <label key={key} className={`flex cursor-pointer items-center gap-2 rounded-lg border p-3 ${filters.amenities.includes(key) ? "border-primary bg-primary/5" : "border-border"}`}>
+                    <Checkbox checked={filters.amenities.includes(key)} onCheckedChange={(checked) => setFilters({ ...filters, amenities: checked ? [...filters.amenities, key] : filters.amenities.filter((amenity) => amenity !== key) })} />
+                    <Icon className="h-4 w-4" />
                     <span className="text-sm capitalize">{key}</span>
                   </label>
                 ))}
@@ -524,24 +406,13 @@ const Hostel = () => {
             </div>
 
             <label className="flex items-center gap-2">
-              <Checkbox
-                checked={filters.verified}
-                onCheckedChange={(checked) => setFilters({ ...filters, verified: !!checked })}
-              />
+              <Checkbox checked={filters.verified} onCheckedChange={(checked) => setFilters({ ...filters, verified: Boolean(checked) })} />
               <span className="text-sm">Verified listings only</span>
             </label>
 
             <div className="flex gap-2">
-              <Button
-                variant="outline"
-                className="flex-1"
-                onClick={() => setFilters({ type: "", amenities: [], verified: false })}
-              >
-                Clear All
-              </Button>
-              <Button className="flex-1" onClick={() => setFiltersOpen(false)}>
-                Apply Filters
-              </Button>
+              <Button variant="outline" className="flex-1" onClick={() => setFilters({ type: "all", amenities: [], verified: false })}>Clear All</Button>
+              <Button className="flex-1" onClick={() => setFiltersOpen(false)}>Apply Filters</Button>
             </div>
           </div>
         </DialogContent>

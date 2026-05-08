@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -41,6 +42,7 @@ const AdminPanel = () => {
   const [hostelRequests, setHostelRequests] = useState<any[]>([]);
   const [roommateRequests, setRoommateRequests] = useState<any[]>([]);
   const [marketplaceRequests, setMarketplaceRequests] = useState<any[]>([]);
+  const [anonymousReports, setAnonymousReports] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const { adminLogout, adminUsername } = useAdminAuth();
   const navigate = useNavigate();
@@ -81,9 +83,18 @@ const AdminPanel = () => {
 
       if (marketplaceError) throw marketplaceError;
 
+      const { data: reports, error: reportsError } = await (supabase as any)
+        .from("anonymous_reports")
+        .select("id, post_id, reporter_id, reason, details, status, created_at")
+        .eq("status", "pending")
+        .order("created_at", { ascending: false });
+
+      if (reportsError) throw reportsError;
+
       setHostelRequests(hostels || []);
       setRoommateRequests(roommates || []);
       setMarketplaceRequests(marketplace || []);
+      setAnonymousReports(reports || []);
     } catch (error) {
       console.error("Error fetching requests:", error);
       toast.error("Failed to load admin requests");
@@ -98,6 +109,24 @@ const AdminPanel = () => {
       const { error } = await supabase.from(table).update({ status: "approved" }).eq("id", id);
 
       if (error) throw error;
+
+      const request = [...hostelRequests, ...roommateRequests, ...marketplaceRequests].find((item) => item.id === id);
+      if (request?.user_id) {
+        await supabase.from("notifications").insert({
+          user_id: request.user_id,
+          title: "Request approved",
+          description: `Your ${type} submission has been approved and is now live.`,
+          type: "admin",
+          is_important: true,
+          reference_type: type,
+          reference_id: id,
+        });
+      }
+
+      await supabase
+        .from("admin_requests")
+        .update({ status: "approved", admin_notes: "Approved from admin panel" })
+        .eq("reference_id", id);
 
       toast.success(`${type.charAt(0).toUpperCase() + type.slice(1)} approved!`);
       await fetchRequests();
@@ -115,6 +144,24 @@ const AdminPanel = () => {
       const { error } = await supabase.from(table).update({ status: "rejected" }).eq("id", id);
 
       if (error) throw error;
+
+      const request = [...hostelRequests, ...roommateRequests, ...marketplaceRequests].find((item) => item.id === id);
+      if (request?.user_id) {
+        await supabase.from("notifications").insert({
+          user_id: request.user_id,
+          title: "Request rejected",
+          description: `Your ${type} submission was not approved. Please review the guidelines and try again.`,
+          type: "admin",
+          is_important: true,
+          reference_type: type,
+          reference_id: id,
+        });
+      }
+
+      await supabase
+        .from("admin_requests")
+        .update({ status: "rejected", admin_notes: "Rejected from admin panel" })
+        .eq("reference_id", id);
 
       toast.success(`${type.charAt(0).toUpperCase() + type.slice(1)} rejected`);
       await fetchRequests();
@@ -151,10 +198,83 @@ const AdminPanel = () => {
       } else if (actionType === "reject") {
         await handleReject(selectedRequest.id, selectedRequest.requestType);
       } else if (actionType === "message") {
-        toast.success("Message feature coming soon!");
+        if (!messageContent.trim()) {
+          toast.error("Please type a message.");
+          return;
+        }
+
+        await supabase.from("notifications").insert({
+          user_id: selectedRequest.user_id,
+          title: "Message from admin",
+          description: messageContent.trim(),
+          type: "admin",
+          is_important: true,
+          reference_type: selectedRequest.requestType,
+          reference_id: selectedRequest.id,
+        });
+        toast.success("Admin notification sent.");
+        setActionDialogOpen(false);
       }
     } catch (error) {
       console.error("Error in confirmAction:", error);
+    }
+  };
+
+  const promoteToSubAdmin = async (request: any) => {
+    try {
+      const expiresAt = new Date();
+      expiresAt.setMonth(expiresAt.getMonth() + 1);
+
+      const { error: roleError } = await (supabase as any)
+        .from("user_roles")
+        .upsert({ user_id: request.user_id, role: "sub_admin" }, { onConflict: "user_id,role" });
+
+      if (roleError) throw roleError;
+
+      const { error: profileError } = await (supabase as any)
+        .from("profiles")
+        .update({ verified_badge: true, sub_admin_expires_at: expiresAt.toISOString() })
+        .eq("user_id", request.user_id);
+
+      if (profileError) throw profileError;
+
+      await (supabase as any).from("user_subscriptions").upsert({
+        user_id: request.user_id,
+        plan_type: "sub_admin",
+        provider: "manual",
+        status: "active",
+        current_period_start: new Date().toISOString(),
+        current_period_end: expiresAt.toISOString(),
+      }, { onConflict: "user_id,plan_type" });
+
+      await supabase.from("notifications").insert({
+        user_id: request.user_id,
+        title: "Sub-admin access activated",
+        description: "Your verified vendor badge and sub-admin access are active for this billing period.",
+        type: "subscription",
+        is_important: true,
+      });
+
+      toast.success("User promoted to sub-admin for one month.");
+    } catch (error) {
+      console.error("Error promoting user:", error);
+      toast.error("Failed to promote user.");
+    }
+  };
+
+  const resolveReport = async (report: any, status: "resolved" | "dismissed") => {
+    try {
+      const { error } = await (supabase as any)
+        .from("anonymous_reports")
+        .update({ status, admin_notes: `${status} from admin panel` })
+        .eq("id", report.id);
+
+      if (error) throw error;
+      toast.success(`Report ${status}.`);
+      await fetchRequests();
+    } catch (error) {
+      console.error("Error resolving report:", error);
+      toast.error("Failed to update report.");
     }
   };
 
@@ -207,6 +327,10 @@ const AdminPanel = () => {
             <Button variant="outline" size="sm">
               <Eye className="w-4 h-4 mr-1" />
               View Details
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => promoteToSubAdmin(request)}>
+              <ArrowUpCircle className="w-4 h-4 mr-1" />
+              Sub-admin
             </Button>
             <div className="flex-1" />
             <Button variant="destructive" size="sm" onClick={() => handleAction(request, "reject", type)}>
@@ -272,8 +396,8 @@ const AdminPanel = () => {
         </Card>
         <Card className="glass-card">
           <CardContent className="pt-6 text-center">
-            <p className="text-3xl font-bold text-accent">
-              {hostelRequests.length + roommateRequests.length + marketplaceRequests.length}
+        <p className="text-3xl font-bold text-accent">
+              {hostelRequests.length + roommateRequests.length + marketplaceRequests.length + anonymousReports.length}
             </p>
             <p className="text-sm text-muted-foreground">Total Pending</p>
           </CardContent>
@@ -293,6 +417,10 @@ const AdminPanel = () => {
           <TabsTrigger value="marketplace" className="gap-1">
             <ShoppingBag className="w-4 h-4" />
             Marketplace ({marketplaceRequests.length})
+          </TabsTrigger>
+          <TabsTrigger value="reports" className="gap-1">
+            <AlertTriangle className="w-4 h-4" />
+            Reports ({anonymousReports.length})
           </TabsTrigger>
         </TabsList>
 
@@ -332,6 +460,36 @@ const AdminPanel = () => {
             </Card>
           ) : (
             marketplaceRequests.map((request) => renderRequestCard(request, "marketplace"))
+          )}
+        </TabsContent>
+
+        <TabsContent value="reports" className="space-y-4">
+          {anonymousReports.length === 0 ? (
+            <Card className="glass-card">
+              <CardContent className="py-12 text-center">
+                <AlertTriangle className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+                <p className="text-muted-foreground">No pending anonymous reports</p>
+              </CardContent>
+            </Card>
+          ) : (
+            anonymousReports.map((report) => (
+              <Card key={report.id} className="glass-card">
+                <CardContent className="pt-6">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <h3 className="font-semibold">{report.reason}</h3>
+                      <p className="text-sm text-muted-foreground">Post: {report.post_id}</p>
+                      {report.details && <p className="text-sm mt-2">{report.details}</p>}
+                    </div>
+                    <Badge variant="secondary">{report.status}</Badge>
+                  </div>
+                  <div className="flex justify-end gap-2 mt-4 border-t border-border/50 pt-4">
+                    <Button variant="outline" size="sm" onClick={() => resolveReport(report, "dismissed")}>Dismiss</Button>
+                    <Button variant="destructive" size="sm" onClick={() => resolveReport(report, "resolved")}>Resolve</Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))
           )}
         </TabsContent>
       </Tabs>

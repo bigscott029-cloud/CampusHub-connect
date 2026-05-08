@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { getProfileWithUniversity } from "@/lib/campus";
 import { toast } from "sonner";
 
 const preferenceOptions = [
@@ -73,7 +74,8 @@ const CreateRoommateRequest = () => {
 
     setIsSubmitting(true);
     try {
-      const { error } = await supabase.from("roommate_requests").insert({
+      const { profile } = await getProfileWithUniversity(user.id);
+      const { data: request, error } = await supabase.from("roommate_requests").insert({
         user_id: user.id,
         title: formData.title,
         description: formData.description,
@@ -82,7 +84,8 @@ const CreateRoommateRequest = () => {
         preferred_location: formData.preferredLocation,
         preferences: formData.preferences.join(", "),
         status: "pending",
-      });
+        university_id: profile?.university_id ?? null,
+      }).select("id").single();
 
       if (error) throw error;
 
@@ -90,6 +93,7 @@ const CreateRoommateRequest = () => {
       await supabase.from("admin_requests").insert({
         user_id: user.id,
         request_type: "roommate_request",
+        reference_id: request.id,
         status: "pending",
       });
 
@@ -100,6 +104,8 @@ const CreateRoommateRequest = () => {
         description: "Your roommate request is being reviewed by an admin.",
         type: "listing",
         is_important: true,
+        reference_type: "roommate_request",
+        reference_id: request.id,
       });
 
       setSubmitted(true);
