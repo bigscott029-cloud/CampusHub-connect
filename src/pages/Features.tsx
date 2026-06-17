@@ -109,7 +109,7 @@ const Features = () => {
                 <span className="gradient-text">Campus Life</span>
               </h1>
               <p className="text-lg text-muted-foreground mb-8">
-                From staying informed to finding accommodation, buying textbooks to connecting with peers - Big Scott brings your entire campus experience into one powerful platform.
+                From staying informed to finding accommodation, buying textbooks to connecting with peers - CampusHub brings your entire campus experience into one powerful platform.
               </p>
               <div className="flex flex-wrap justify-center gap-4">
                 <Button variant="hero" size="lg" asChild>
@@ -242,7 +242,7 @@ const Features = () => {
                     Ready to Transform Your Campus Experience?
                   </h2>
                   <p className="text-muted-foreground mb-8">
-                    Join the campus community already creating live gists, listings, and study activity in Big Scott.
+                    Join the campus community already creating live gists, listings, and study activity in CampusHub.
                   </p>
                   <Button variant="hero" size="lg" asChild>
                     <Link to="/signup">Sign Up Now - It's Free!</Link>

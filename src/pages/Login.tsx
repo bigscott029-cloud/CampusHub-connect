@@ -46,10 +46,10 @@ const Login = () => {
         {/* Logo */}
         <div className="flex items-center justify-center gap-2 mb-8">
           <div className="w-10 h-10 rounded-xl gradient-bg flex items-center justify-center">
-            <span className="text-primary-foreground font-bold text-xl">B</span>
+            <span className="text-primary-foreground font-bold text-xl">C</span>
           </div>
           <span className="font-display font-bold text-2xl">
-            Big<span className="text-primary">Scott</span>
+            Campus<span className="text-primary">Hub</span>
           </span>
         </div>
 

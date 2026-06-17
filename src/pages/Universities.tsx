@@ -331,7 +331,7 @@ const Universities = () => {
                 Once a university is added in the admin flow, its public gists, housing posts, and marketplace activity will appear here automatically.
               </p>
               <Button variant="hero" asChild>
-                <a href="mailto:hello@campushub.ng?subject=Request%20Institution">Request Your Institution</a>
+                <a href="mailto:campushub.connect@gmail.com?subject=Request%20Institution">Request Your Institution</a>
               </Button>
             </Card>
           </div>

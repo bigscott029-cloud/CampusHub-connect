@@ -49,7 +49,7 @@ BEGIN
         RETURN jsonb_build_object('success', false, 'message', 'Invalid credentials');
     END IF;
 
-    IF crypt(p_password, v_password_hash) = v_password_hash THEN
+    IF extensions.crypt(p_password, v_password_hash) = v_password_hash THEN
         UPDATE public.admin_users
         SET last_login = now()
         WHERE id = v_admin_id;
@@ -66,5 +66,5 @@ BEGIN
 END;
 $$;
 
--- Grant execute permission to authenticated users only for verification
-GRANT EXECUTE ON FUNCTION public.verify_admin_credentials(TEXT, TEXT) TO authenticated;
+-- Grant execute permission for the unauthenticated admin login screen and signed-in sessions.
+GRANT EXECUTE ON FUNCTION public.verify_admin_credentials(TEXT, TEXT) TO anon, authenticated;

@@ -1,4 +1,6 @@
--- Admin security helpers and RLS policies for CampusHub.
+-- Keep admin credential verification compatible with Supabase-hosted pgcrypto.
+-- Supabase installs pgcrypto functions in the extensions schema, while the
+-- security-definer function pins its search_path to public.
 
 CREATE OR REPLACE FUNCTION public.verify_admin_credentials(p_email TEXT, p_password TEXT)
 RETURNS JSONB

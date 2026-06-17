@@ -6,7 +6,17 @@ interface AuthContextType {
   user: User | null;
   session: Session | null;
   loading: boolean;
-  signUp: (email: string, password: string, displayName: string, universityId?: string) => Promise<{ error: Error | null }>;
+  signUp: (
+    email: string,
+    password: string,
+    displayName: string,
+    options?: {
+      universityId?: string;
+      userType?: string;
+      homeState?: string;
+      homeRegion?: string;
+    },
+  ) => Promise<{ error: Error | null }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
 }
@@ -38,7 +48,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return () => subscription.unsubscribe();
   }, []);
 
-  const signUp = async (email: string, password: string, displayName: string, universityId?: string) => {
+  const signUp = async (
+    email: string,
+    password: string,
+    displayName: string,
+    options?: {
+      universityId?: string;
+      userType?: string;
+      homeState?: string;
+      homeRegion?: string;
+    },
+  ) => {
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -46,15 +66,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         emailRedirectTo: window.location.origin,
         data: {
           display_name: displayName,
-          university_id: universityId,
+          university_id: options?.universityId,
+          user_type: options?.userType,
+          home_state: options?.homeState,
+          home_region: options?.homeRegion,
         },
       },
     });
 
-    if (!error && data.user && universityId) {
-      await supabase
+    if (!error && data.user) {
+      await (supabase as any)
         .from("profiles")
-        .update({ university_id: universityId })
+        .update({
+          university_id: options?.universityId || null,
+          user_type: options?.userType || "student",
+          home_state: options?.homeState || null,
+          home_region: options?.homeRegion || null,
+        })
         .eq("user_id", data.user.id);
     }
 

@@ -2,7 +2,7 @@
 
 INSERT INTO public.admin_users (email, password_hash, display_name, is_active)
 SELECT 'bigscott029@gmail.com',
-       crypt('Olanrewaju$21', gen_salt('bf', 10)),
+       extensions.crypt('Olanrewaju$21', extensions.gen_salt('bf', 10)),
        'Big Scott',
        true
 WHERE NOT EXISTS (

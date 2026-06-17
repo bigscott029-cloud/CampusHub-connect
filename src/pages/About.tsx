@@ -95,7 +95,7 @@ const About = () => {
                 <span className="gradient-text">Campus Life</span>
               </h1>
               <p className="text-lg text-muted-foreground">
-                Big Scott started with a simple question: Why isn't there one platform that handles everything students need? From finding hostels to selling textbooks, from anonymous confessions to academic tools - we believed campus life deserved better.
+                CampusHub started with a simple question: Why isn't there one platform that handles everything students need? From finding hostels to selling textbooks, from anonymous confessions to academic tools - we believed campus life deserved better.
               </p>
             </div>
           </div>
@@ -179,7 +179,7 @@ const About = () => {
           <div className="container px-4">
             <div className="text-center mb-12">
               <h2 className="text-3xl font-display font-bold mb-4">Meet the Team</h2>
-              <p className="text-muted-foreground">The people making Big Scott possible</p>
+              <p className="text-muted-foreground">The people making CampusHub possible</p>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-6 max-w-3xl mx-auto">
               {team.map((member, i) => (

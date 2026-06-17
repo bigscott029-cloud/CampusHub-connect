@@ -6,16 +6,28 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { Eye, EyeOff, Loader2, Check, X } from "lucide-react";
+import { Eye, EyeOff, Loader2, Check, X, MapPin, School, Store, Users } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { InstitutionCombobox, type InstitutionOption } from "@/components/campus/InstitutionCombobox";
+import { Badge } from "@/components/ui/badge";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { getNigeriaStateOption, nigeriaStates, type CampusAudienceType } from "@/lib/nigeria";
 
 const Signup = () => {
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [audienceType, setAudienceType] = useState<CampusAudienceType>("student");
   const [universityId, setUniversityId] = useState("");
+  const [homeState, setHomeState] = useState("");
   const [institutions, setInstitutions] = useState<InstitutionOption[]>([]);
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -38,7 +50,7 @@ const Signup = () => {
     const fetchInstitutions = async () => {
       const { data } = await (supabase as any)
         .from("universities")
-        .select("id, name, institution_type, ownership, state, region")
+        .select("id, name, institution_type, ownership, state, region, aliases")
         .order("name");
       if (data) setInstitutions(data);
     };
@@ -57,10 +69,21 @@ const Signup = () => {
       return;
     }
 
-    if (!universityId) {
+    if (audienceType === "student" && !universityId) {
       toast({
-        title: "University required",
-        description: "Please select your university.",
+        title: "Institution required",
+        description: "Please select your school or institution.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const selectedState = getNigeriaStateOption(homeState);
+
+    if (audienceType !== "student" && !selectedState) {
+      toast({
+        title: "State required",
+        description: "Please select your state so we can place you in the right regional community.",
         variant: "destructive",
       });
       return;
@@ -68,7 +91,12 @@ const Signup = () => {
 
     setIsLoading(true);
 
-    const { error } = await signUp(email, password, displayName, universityId);
+    const { error } = await signUp(email, password, displayName, {
+      universityId: audienceType === "student" ? universityId : undefined,
+      userType: audienceType,
+      homeState: audienceType === "student" ? undefined : selectedState?.state,
+      homeRegion: audienceType === "student" ? undefined : selectedState?.region,
+    });
 
     if (error) {
       toast({
@@ -80,7 +108,7 @@ const Signup = () => {
       // Update profile with university after signup
       toast({
         title: "Account created!",
-        description: "Welcome to Big Scott Campus Media.",
+        description: "Welcome to CampusHub.",
       });
       navigate("/dashboard");
     }
@@ -99,22 +127,45 @@ const Signup = () => {
     </div>
   );
 
+  const selectedState = getNigeriaStateOption(homeState);
+
+  const audienceOptions = [
+    {
+      value: "student" as const,
+      title: "Student",
+      description: "Join by school",
+      icon: School,
+    },
+    {
+      value: "agent_trader" as const,
+      title: "Agent or trader",
+      description: "Join by state",
+      icon: Store,
+    },
+    {
+      value: "community" as const,
+      title: "Community user",
+      description: "Browse locally",
+      icon: Users,
+    },
+  ];
+
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="flex items-center justify-center gap-2 mb-8">
           <div className="w-10 h-10 rounded-xl gradient-bg flex items-center justify-center">
-            <span className="text-primary-foreground font-bold text-xl">B</span>
+            <span className="text-primary-foreground font-bold text-xl">C</span>
           </div>
           <span className="font-display font-bold text-2xl">
-            Big<span className="text-primary">Scott</span>
+            Campus<span className="text-primary">Hub</span>
           </span>
         </div>
 
         <Card className="glass-card">
           <CardHeader className="text-center">
-            <CardTitle className="text-2xl font-display">Join Big Scott</CardTitle>
+            <CardTitle className="text-2xl font-display">Join CampusHub</CardTitle>
             <CardDescription>
               Create your account to join your campus community
             </CardDescription>
@@ -147,14 +198,83 @@ const Signup = () => {
                 />
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="institution">School / Institution</Label>
-                <InstitutionCombobox
-                  institutions={institutions}
-                  value={universityId}
-                  onChange={setUniversityId}
-                />
+              <div className="space-y-3">
+                <Label>I am joining as</Label>
+                <RadioGroup
+                  value={audienceType}
+                  onValueChange={(value) => {
+                    const nextType = value as CampusAudienceType;
+                    setAudienceType(nextType);
+                    if (nextType === "student") {
+                      setHomeState("");
+                    } else {
+                      setUniversityId("");
+                    }
+                  }}
+                  className="grid gap-2"
+                >
+                  {audienceOptions.map((option) => (
+                    <Label
+                      key={option.value}
+                      htmlFor={`audience-${option.value}`}
+                      className="flex cursor-pointer items-center gap-3 rounded-lg border border-border p-3 transition-colors hover:bg-muted/50 has-[:checked]:border-primary has-[:checked]:bg-primary/5"
+                    >
+                      <RadioGroupItem id={`audience-${option.value}`} value={option.value} />
+                      <option.icon className="h-4 w-4 text-primary" />
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-sm font-medium">{option.title}</span>
+                        <span className="block text-xs text-muted-foreground">{option.description}</span>
+                      </span>
+                    </Label>
+                  ))}
+                </RadioGroup>
               </div>
+
+              {audienceType === "student" ? (
+                <div className="space-y-2">
+                  <Label htmlFor="institution">School / Institution</Label>
+                  <InstitutionCombobox
+                    institutions={institutions}
+                    value={universityId}
+                    onChange={setUniversityId}
+                  />
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <Label htmlFor="state">State</Label>
+                  <Select value={homeState} onValueChange={setHomeState}>
+                    <SelectTrigger id="state">
+                      <SelectValue placeholder="Select your state" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {nigeriaStates.map((option) => (
+                        <SelectItem key={option.state} value={option.state}>
+                          {option.state}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {selectedState && (
+                    <div
+                      className="rounded-lg border p-3 text-sm"
+                      style={{ borderColor: selectedState.accentColor }}
+                    >
+                      <div className="mb-1 flex items-center gap-2">
+                        <MapPin className="h-4 w-4" style={{ color: selectedState.accentColor }} />
+                        <span className="font-medium">{selectedState.state}</span>
+                        <Badge variant="secondary">{selectedState.region}</Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground">{selectedState.prompt}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {audienceType === "student" ? (
+                <input type="hidden" name="audience-region" value="school" />
+              ) : (
+                <input type="hidden" name="audience-region" value={selectedState?.region || ""} />
+              )}
 
               <div className="space-y-2">
                 <Label htmlFor="password">Password</Label>

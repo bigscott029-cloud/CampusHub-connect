@@ -150,7 +150,7 @@ const HostelDetail = () => {
 
   const handleReport = () => {
     if (!hostel) return;
-    window.location.href = `mailto:hello@campushub.ng?subject=Report%20Hostel%20Listing&body=Listing:%20${encodeURIComponent(hostel.title)}%0AID:%20${encodeURIComponent(hostel.id)}`;
+    window.location.href = `mailto:campushub.connect@gmail.com?subject=Report%20Hostel%20Listing&body=Listing:%20${encodeURIComponent(hostel.title)}%0AID:%20${encodeURIComponent(hostel.id)}`;
   };
 
   if (hostelQuery.isLoading) {

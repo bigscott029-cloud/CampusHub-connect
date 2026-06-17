@@ -10,10 +10,73 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.1"
+    PostgrestVersion: "14.5"
+  }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
   }
   public: {
     Tables: {
+      ad_events: {
+        Row: {
+          ad_id: string
+          created_at: string
+          event_type: string
+          id: string
+          metadata: Json
+          points_awarded: number
+          user_id: string | null
+        }
+        Insert: {
+          ad_id: string
+          created_at?: string
+          event_type: string
+          id?: string
+          metadata?: Json
+          points_awarded?: number
+          user_id?: string | null
+        }
+        Update: {
+          ad_id?: string
+          created_at?: string
+          event_type?: string
+          id?: string
+          metadata?: Json
+          points_awarded?: number
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ad_events_ad_id_fkey"
+            columns: ["ad_id"]
+            isOneToOne: false
+            referencedRelation: "ads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       admin_requests: {
         Row: {
           admin_notes: string | null
@@ -46,6 +109,235 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      admin_users: {
+        Row: {
+          created_at: string
+          display_name: string
+          email: string
+          id: string
+          is_active: boolean | null
+          last_login: string | null
+          password_hash: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          display_name: string
+          email: string
+          id?: string
+          is_active?: boolean | null
+          last_login?: string | null
+          password_hash: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          display_name?: string
+          email?: string
+          id?: string
+          is_active?: boolean | null
+          last_login?: string | null
+          password_hash?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      ads: {
+        Row: {
+          ab_variant: string
+          clicks_count: number
+          conversions_count: number
+          created_at: string
+          creative_url: string | null
+          cta_text: string
+          cta_url: string
+          description: string
+          ends_at: string | null
+          geo_region: string | null
+          id: string
+          impressions_count: number
+          owner_id: string
+          payment_status: string
+          placement_type: string
+          predicted_score: number
+          reward_points: number
+          sponsor_name: string
+          starts_at: string
+          status: string
+          target_departments: string[]
+          target_interests: string[]
+          target_university_id: string | null
+          tier_price: number
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          ab_variant?: string
+          clicks_count?: number
+          conversions_count?: number
+          created_at?: string
+          creative_url?: string | null
+          cta_text?: string
+          cta_url: string
+          description: string
+          ends_at?: string | null
+          geo_region?: string | null
+          id?: string
+          impressions_count?: number
+          owner_id: string
+          payment_status?: string
+          placement_type: string
+          predicted_score?: number
+          reward_points?: number
+          sponsor_name: string
+          starts_at?: string
+          status?: string
+          target_departments?: string[]
+          target_interests?: string[]
+          target_university_id?: string | null
+          tier_price?: number
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          ab_variant?: string
+          clicks_count?: number
+          conversions_count?: number
+          created_at?: string
+          creative_url?: string | null
+          cta_text?: string
+          cta_url?: string
+          description?: string
+          ends_at?: string | null
+          geo_region?: string | null
+          id?: string
+          impressions_count?: number
+          owner_id?: string
+          payment_status?: string
+          placement_type?: string
+          predicted_score?: number
+          reward_points?: number
+          sponsor_name?: string
+          starts_at?: string
+          status?: string
+          target_departments?: string[]
+          target_interests?: string[]
+          target_university_id?: string | null
+          tier_price?: number
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ads_target_university_id_fkey"
+            columns: ["target_university_id"]
+            isOneToOne: false
+            referencedRelation: "universities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agent_verification_requests: {
+        Row: {
+          admin_notes: string | null
+          business_name: string | null
+          created_at: string
+          fee_amount: number
+          id: string
+          identity_document_url: string | null
+          legal_name: string
+          payment_id: string | null
+          phone_number: string
+          status: string
+          university_id: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          admin_notes?: string | null
+          business_name?: string | null
+          created_at?: string
+          fee_amount?: number
+          id?: string
+          identity_document_url?: string | null
+          legal_name: string
+          payment_id?: string | null
+          phone_number: string
+          status?: string
+          university_id?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          admin_notes?: string | null
+          business_name?: string | null
+          created_at?: string
+          fee_amount?: number
+          id?: string
+          identity_document_url?: string | null
+          legal_name?: string
+          payment_id?: string | null
+          phone_number?: string
+          status?: string
+          university_id?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_verification_requests_payment_id_fkey"
+            columns: ["payment_id"]
+            isOneToOne: false
+            referencedRelation: "payments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_verification_requests_university_id_fkey"
+            columns: ["university_id"]
+            isOneToOne: false
+            referencedRelation: "universities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      anonymous_comments: {
+        Row: {
+          anonymous_name: string
+          content: string
+          created_at: string
+          id: string
+          likes_count: number
+          post_id: string
+          user_id: string
+        }
+        Insert: {
+          anonymous_name: string
+          content: string
+          created_at?: string
+          id?: string
+          likes_count?: number
+          post_id: string
+          user_id: string
+        }
+        Update: {
+          anonymous_name?: string
+          content?: string
+          created_at?: string
+          id?: string
+          likes_count?: number
+          post_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "anonymous_comments_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "anonymous_posts"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       anonymous_names: {
         Row: {
@@ -108,6 +400,50 @@ export type Database = {
             columns: ["university_id"]
             isOneToOne: false
             referencedRelation: "universities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      anonymous_reports: {
+        Row: {
+          admin_notes: string | null
+          created_at: string
+          details: string | null
+          id: string
+          post_id: string
+          reason: string
+          reporter_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          admin_notes?: string | null
+          created_at?: string
+          details?: string | null
+          id?: string
+          post_id: string
+          reason: string
+          reporter_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          admin_notes?: string | null
+          created_at?: string
+          details?: string | null
+          id?: string
+          post_id?: string
+          reason?: string
+          reporter_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "anonymous_reports_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "anonymous_posts"
             referencedColumns: ["id"]
           },
         ]
@@ -203,55 +539,76 @@ export type Database = {
       }
       hostel_listings: {
         Row: {
+          admin_review_notes: string | null
           amenities: string[] | null
           created_at: string
           description: string | null
+          escrow_status: string
           hostel_type: string
           id: string
           images: string[] | null
+          is_verified: boolean
           location: string
           phone_number: string | null
           price: number
           price_period: string | null
           status: string | null
+          student_service_fee_amount: number
+          student_service_fee_rate: number
           title: string
+          total_student_price: number | null
           university_id: string | null
           updated_at: string
           user_id: string
+          views_count: number
         }
         Insert: {
+          admin_review_notes?: string | null
           amenities?: string[] | null
           created_at?: string
           description?: string | null
+          escrow_status?: string
           hostel_type: string
           id?: string
           images?: string[] | null
+          is_verified?: boolean
           location: string
           phone_number?: string | null
           price: number
           price_period?: string | null
           status?: string | null
+          student_service_fee_amount?: number
+          student_service_fee_rate?: number
           title: string
+          total_student_price?: number | null
           university_id?: string | null
           updated_at?: string
           user_id: string
+          views_count?: number
         }
         Update: {
+          admin_review_notes?: string | null
           amenities?: string[] | null
           created_at?: string
           description?: string | null
+          escrow_status?: string
           hostel_type?: string
           id?: string
           images?: string[] | null
+          is_verified?: boolean
           location?: string
           phone_number?: string | null
           price?: number
           price_period?: string | null
           status?: string | null
+          student_service_fee_amount?: number
+          student_service_fee_rate?: number
           title?: string
+          total_student_price?: number | null
           university_id?: string | null
           updated_at?: string
           user_id?: string
+          views_count?: number
         }
         Relationships: [
           {
@@ -265,55 +622,79 @@ export type Database = {
       }
       marketplace_listings: {
         Row: {
+          admin_review_notes: string | null
           category: string
+          commission_rate: number
           condition: string | null
           created_at: string
           description: string | null
           id: string
           images: string[] | null
           is_urgent: boolean | null
+          listing_plan: string
           location: string | null
+          payment_status: string
+          platform_fee_amount: number
           price: number
+          seller_phone: string | null
           status: string | null
+          target_scope: string
           title: string
           university_id: string | null
           updated_at: string
           urgent_payment_status: string | null
           user_id: string
+          views_count: number
         }
         Insert: {
+          admin_review_notes?: string | null
           category: string
+          commission_rate?: number
           condition?: string | null
           created_at?: string
           description?: string | null
           id?: string
           images?: string[] | null
           is_urgent?: boolean | null
+          listing_plan?: string
           location?: string | null
+          payment_status?: string
+          platform_fee_amount?: number
           price: number
+          seller_phone?: string | null
           status?: string | null
+          target_scope?: string
           title: string
           university_id?: string | null
           updated_at?: string
           urgent_payment_status?: string | null
           user_id: string
+          views_count?: number
         }
         Update: {
+          admin_review_notes?: string | null
           category?: string
+          commission_rate?: number
           condition?: string | null
           created_at?: string
           description?: string | null
           id?: string
           images?: string[] | null
           is_urgent?: boolean | null
+          listing_plan?: string
           location?: string | null
+          payment_status?: string
+          platform_fee_amount?: number
           price?: number
+          seller_phone?: string | null
           status?: string | null
+          target_scope?: string
           title?: string
           university_id?: string | null
           updated_at?: string
           urgent_payment_status?: string | null
           user_id?: string
+          views_count?: number
         }
         Relationships: [
           {
@@ -404,6 +785,155 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      payments: {
+        Row: {
+          amount: number
+          created_at: string
+          currency: string
+          id: string
+          metadata: Json
+          provider: string
+          provider_payment_id: string | null
+          purpose: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          currency?: string
+          id?: string
+          metadata?: Json
+          provider: string
+          provider_payment_id?: string | null
+          purpose: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          currency?: string
+          id?: string
+          metadata?: Json
+          provider?: string
+          provider_payment_id?: string | null
+          purpose?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      popularity_events: {
+        Row: {
+          created_at: string
+          id: string
+          points: number
+          reference_id: string | null
+          reference_type: string | null
+          source: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          points: number
+          reference_id?: string | null
+          reference_type?: string | null
+          source: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          points?: number
+          reference_id?: string | null
+          reference_type?: string | null
+          source?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      post_bookmarks: {
+        Row: {
+          created_at: string
+          id: string
+          post_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          post_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          post_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "post_bookmarks_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      post_comments: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          likes_count: number
+          parent_comment_id: string | null
+          post_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          likes_count?: number
+          parent_comment_id?: string | null
+          post_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          likes_count?: number
+          parent_comment_id?: string | null
+          post_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "post_comments_parent_comment_id_fkey"
+            columns: ["parent_comment_id"]
+            isOneToOne: false
+            referencedRelation: "post_comments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "post_comments_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "posts"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       post_likes: {
         Row: {
@@ -496,6 +1026,10 @@ export type Database = {
       profiles: {
         Row: {
           account_status: string | null
+          agent_daily_post_limit: number
+          agent_monthly_post_limit: number
+          agent_paid_at: string | null
+          agent_verification_status: string
           allow_anonymous_dms: boolean | null
           avatar_url: string | null
           bio: string | null
@@ -507,16 +1041,31 @@ export type Database = {
           id: string
           last_active_at: string | null
           level: string | null
+          matric_number: string | null
+          paypal_customer_id: string | null
+          popularity_points: number
           reputation_score: number | null
           show_department: boolean | null
           show_level: boolean | null
+          stripe_customer_id: string | null
+          student_id_number: string | null
+          student_verification_status: string
+          sub_admin_expires_at: string | null
           university_change_count: number | null
           university_id: string | null
           updated_at: string
           user_id: string
+          verification_document_url: string | null
+          verification_notes: string | null
+          verified_at: string | null
+          verified_badge: boolean
         }
         Insert: {
           account_status?: string | null
+          agent_daily_post_limit?: number
+          agent_monthly_post_limit?: number
+          agent_paid_at?: string | null
+          agent_verification_status?: string
           allow_anonymous_dms?: boolean | null
           avatar_url?: string | null
           bio?: string | null
@@ -528,16 +1077,31 @@ export type Database = {
           id?: string
           last_active_at?: string | null
           level?: string | null
+          matric_number?: string | null
+          paypal_customer_id?: string | null
+          popularity_points?: number
           reputation_score?: number | null
           show_department?: boolean | null
           show_level?: boolean | null
+          stripe_customer_id?: string | null
+          student_id_number?: string | null
+          student_verification_status?: string
+          sub_admin_expires_at?: string | null
           university_change_count?: number | null
           university_id?: string | null
           updated_at?: string
           user_id: string
+          verification_document_url?: string | null
+          verification_notes?: string | null
+          verified_at?: string | null
+          verified_badge?: boolean
         }
         Update: {
           account_status?: string | null
+          agent_daily_post_limit?: number
+          agent_monthly_post_limit?: number
+          agent_paid_at?: string | null
+          agent_verification_status?: string
           allow_anonymous_dms?: boolean | null
           avatar_url?: string | null
           bio?: string | null
@@ -549,13 +1113,24 @@ export type Database = {
           id?: string
           last_active_at?: string | null
           level?: string | null
+          matric_number?: string | null
+          paypal_customer_id?: string | null
+          popularity_points?: number
           reputation_score?: number | null
           show_department?: boolean | null
           show_level?: boolean | null
+          stripe_customer_id?: string | null
+          student_id_number?: string | null
+          student_verification_status?: string
+          sub_admin_expires_at?: string | null
           university_change_count?: number | null
           university_id?: string | null
           updated_at?: string
           user_id?: string
+          verification_document_url?: string | null
+          verification_notes?: string | null
+          verified_at?: string | null
+          verified_badge?: boolean
         }
         Relationships: [
           {
@@ -569,6 +1144,7 @@ export type Database = {
       }
       roommate_requests: {
         Row: {
+          admin_review_notes: string | null
           budget_max: number | null
           budget_min: number | null
           created_at: string
@@ -581,8 +1157,10 @@ export type Database = {
           university_id: string | null
           updated_at: string
           user_id: string
+          verification_required: boolean
         }
         Insert: {
+          admin_review_notes?: string | null
           budget_max?: number | null
           budget_min?: number | null
           created_at?: string
@@ -595,8 +1173,10 @@ export type Database = {
           university_id?: string | null
           updated_at?: string
           user_id: string
+          verification_required?: boolean
         }
         Update: {
+          admin_review_notes?: string | null
           budget_max?: number | null
           budget_min?: number | null
           created_at?: string
@@ -609,6 +1189,7 @@ export type Database = {
           university_id?: string | null
           updated_at?: string
           user_id?: string
+          verification_required?: boolean
         }
         Relationships: [
           {
@@ -650,36 +1231,113 @@ export type Database = {
         }
         Relationships: []
       }
+      student_verification_requests: {
+        Row: {
+          admin_notes: string | null
+          created_at: string
+          document_url: string | null
+          id: string
+          matric_number: string | null
+          status: string
+          student_id_number: string | null
+          university_id: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          admin_notes?: string | null
+          created_at?: string
+          document_url?: string | null
+          id?: string
+          matric_number?: string | null
+          status?: string
+          student_id_number?: string | null
+          university_id?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          admin_notes?: string | null
+          created_at?: string
+          document_url?: string | null
+          id?: string
+          matric_number?: string | null
+          status?: string
+          student_id_number?: string | null
+          university_id?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "student_verification_requests_university_id_fkey"
+            columns: ["university_id"]
+            isOneToOne: false
+            referencedRelation: "universities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       universities: {
         Row: {
+          accent_color: string
+          campus_motto: string | null
+          city: string | null
+          community_prompt: string | null
           created_at: string
           email_domain: string | null
           id: string
+          institution_type: string
           location: string | null
           logo_url: string | null
           name: string
+          ownership: string | null
+          region: string | null
           slug: string
+          source_label: string | null
+          state: string | null
           updated_at: string
+          website_url: string | null
         }
         Insert: {
+          accent_color?: string
+          campus_motto?: string | null
+          city?: string | null
+          community_prompt?: string | null
           created_at?: string
           email_domain?: string | null
           id?: string
+          institution_type?: string
           location?: string | null
           logo_url?: string | null
           name: string
+          ownership?: string | null
+          region?: string | null
           slug: string
+          source_label?: string | null
+          state?: string | null
           updated_at?: string
+          website_url?: string | null
         }
         Update: {
+          accent_color?: string
+          campus_motto?: string | null
+          city?: string | null
+          community_prompt?: string | null
           created_at?: string
           email_domain?: string | null
           id?: string
+          institution_type?: string
           location?: string | null
           logo_url?: string | null
           name?: string
+          ownership?: string | null
+          region?: string | null
           slug?: string
+          source_label?: string | null
+          state?: string | null
           updated_at?: string
+          website_url?: string | null
         }
         Relationships: []
       }
@@ -730,6 +1388,45 @@ export type Database = {
         }
         Relationships: []
       }
+      user_subscriptions: {
+        Row: {
+          created_at: string
+          current_period_end: string | null
+          current_period_start: string | null
+          id: string
+          plan_type: string
+          provider: string
+          provider_subscription_id: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          current_period_end?: string | null
+          current_period_start?: string | null
+          id?: string
+          plan_type: string
+          provider: string
+          provider_subscription_id?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          current_period_end?: string | null
+          current_period_start?: string | null
+          id?: string
+          plan_type?: string
+          provider?: string
+          provider_subscription_id?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -742,9 +1439,18 @@ export type Database = {
         }
         Returns: boolean
       }
+      verify_admin_credentials: {
+        Args: { p_email: string; p_password: string }
+        Returns: Json
+      }
     }
     Enums: {
-      app_role: "student" | "moderator" | "university_admin" | "super_admin" | "sub_admin"
+      app_role:
+        | "student"
+        | "moderator"
+        | "university_admin"
+        | "super_admin"
+        | "sub_admin"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -870,9 +1576,18 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {
-      app_role: ["student", "moderator", "university_admin", "super_admin", "sub_admin"],
+      app_role: [
+        "student",
+        "moderator",
+        "university_admin",
+        "super_admin",
+        "sub_admin",
+      ],
     },
   },
 } as const

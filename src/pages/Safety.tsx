@@ -93,7 +93,7 @@ const Safety = () => {
                 <span className="gradient-text">Top Priority</span>
               </h1>
               <p className="text-lg text-muted-foreground">
-                We've built Big Scott with comprehensive safety features to ensure you have a positive, secure experience. Learn about the measures we take to protect our community.
+                We've built CampusHub with comprehensive safety features to ensure you have a positive, secure experience. Learn about the measures we take to protect our community.
               </p>
             </div>
           </div>
@@ -256,9 +256,9 @@ const Safety = () => {
             </div>
             <div className="grid md:grid-cols-3 gap-6 max-w-3xl mx-auto">
               {[
-                { icon: Mail, title: "Email Us", detail: "safety@campushub.ng", action: "Send Email", href: "mailto:safety@campushub.ng" },
+                { icon: Mail, title: "Email Us", detail: "campushub.connect@gmail.com", action: "Send Email", href: "mailto:campushub.connect@gmail.com" },
                 { icon: MessageCircle, title: "In-App Report", detail: "Available on every post", action: "Learn How", href: "/anonymous" },
-                { icon: Phone, title: "Emergency", detail: "For urgent safety concerns", action: "Contact Now", href: "mailto:safety@campushub.ng?subject=Urgent%20Safety%20Concern" },
+                { icon: Phone, title: "Emergency", detail: "For urgent safety concerns", action: "Contact Now", href: "mailto:campushub.connect@gmail.com?subject=Urgent%20Safety%20Concern" },
               ].map((item, i) => (
                 <Card key={i} className="glass-card text-center p-6">
                   <item.icon className="w-8 h-8 mx-auto text-primary mb-4" />
