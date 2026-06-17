@@ -29,6 +29,11 @@ interface UniversityCardData {
   slug: string;
   location: string | null;
   logo_url: string | null;
+  institution_type?: string | null;
+  ownership?: string | null;
+  state?: string | null;
+  region?: string | null;
+  accent_color?: string | null;
   stats: {
     gists: number;
     marketplace: number;
@@ -52,7 +57,7 @@ const Universities = () => {
         { data: hostels, error: hostelsError },
         { data: roommateRequests, error: roommateError },
       ] = await Promise.all([
-        supabase.from("universities").select("id, name, slug, location, logo_url").order("name"),
+        (supabase as any).from("universities").select("id, name, slug, location, logo_url, institution_type, ownership, state, region, accent_color").order("name"),
         supabase.from("posts").select("id, university_id"),
         supabase.from("marketplace_listings").select("id, university_id"),
         supabase.from("hostel_listings").select("id, university_id"),
@@ -137,7 +142,10 @@ const Universities = () => {
       return (
         university.name.toLowerCase().includes(query) ||
         university.slug.toLowerCase().includes(query) ||
-        university.location?.toLowerCase().includes(query)
+        university.location?.toLowerCase().includes(query) ||
+        university.state?.toLowerCase().includes(query) ||
+        university.region?.toLowerCase().includes(query) ||
+        university.institution_type?.toLowerCase().includes(query)
       );
     });
   }, [searchQuery, universitiesQuery.data?.cards]);
@@ -158,7 +166,7 @@ const Universities = () => {
                 Find Your <span className="gradient-text">University</span>
               </h1>
               <p className="mb-8 text-lg text-muted-foreground">
-                Browse campuses with real activity pulled from the live database: public gists, listings, housing posts, and roommate requests.
+                Browse universities, polytechnics, and colleges with real activity pulled from the live database: public gists, listings, housing posts, and roommate requests.
               </p>
 
               <div className="relative mx-auto max-w-lg">
@@ -181,7 +189,7 @@ const Universities = () => {
                 {
                   icon: Globe,
                   value: universitiesQuery.isLoading ? "--" : formatCompactNumber(universitiesQuery.data?.totals.universities ?? 0),
-                  label: "Universities",
+                  label: "Institutions",
                 },
                 {
                   icon: Newspaper,
@@ -223,7 +231,7 @@ const Universities = () => {
               <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
                 {filteredUniversities.map((university) => (
                   <Card key={university.id} className="glass-card group overflow-hidden hover-lift">
-                    <div className="h-2 bg-gradient-to-r from-primary via-accent to-hostel" />
+                    <div className="h-2" style={{ backgroundColor: university.accent_color || "hsl(var(--primary))" }} />
                     <CardHeader className="pb-3">
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex items-center gap-3">
@@ -239,6 +247,18 @@ const Universities = () => {
                             <div className="mt-1 flex items-center gap-1 text-sm text-muted-foreground">
                               <MapPin className="h-3 w-3" />
                               {university.location || "Campus location pending"}
+                            </div>
+                            <div className="mt-2 flex flex-wrap gap-1">
+                              {university.institution_type && (
+                                <Badge variant="secondary" className="text-[10px] capitalize">
+                                  {university.institution_type.replace(/_/g, " ")}
+                                </Badge>
+                              )}
+                              {university.region && (
+                                <Badge variant="outline" className="text-[10px]">
+                                  {university.region}
+                                </Badge>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -310,7 +330,9 @@ const Universities = () => {
               <p className="mb-6 text-muted-foreground">
                 Once a university is added in the admin flow, its public gists, housing posts, and marketplace activity will appear here automatically.
               </p>
-              <Button variant="hero">Request Your University</Button>
+              <Button variant="hero" asChild>
+                <a href="mailto:hello@campushub.ng?subject=Request%20Institution">Request Your Institution</a>
+              </Button>
             </Card>
           </div>
         </section>

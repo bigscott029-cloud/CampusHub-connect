@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import Navbar from "@/components/landing/Navbar";
 import Footer from "@/components/landing/Footer";
 import { Button } from "@/components/ui/button";
@@ -18,6 +19,8 @@ import {
   BookOpen,
   Star,
 } from "lucide-react";
+import { getPlatformMetrics } from "@/lib/liveMetrics";
+import { formatCompactNumber } from "@/lib/utils";
 
 const team = [
   { name: "Scott Adams", role: "Founder & CEO", avatar: "S" },
@@ -28,9 +31,9 @@ const team = [
 
 const timeline = [
   { year: "2023", title: "The Idea", desc: "Born from the need for a unified campus experience" },
-  { year: "2024", title: "Beta Launch", desc: "First university onboarded with 5,000 students" },
-  { year: "2025", title: "Rapid Growth", desc: "Expanded to 25+ universities across Nigeria" },
-  { year: "2026", title: "Today", desc: "Serving 100,000+ students with 7 core modules" },
+  { year: "2024", title: "Beta Launch", desc: "First campus workflows tested with early users" },
+  { year: "2025", title: "Product Buildout", desc: "Expanded into gists, housing, marketplace, messaging, and academic tools" },
+  { year: "2026", title: "Live Rollout", desc: "Preparing the platform for real database-backed campus activity" },
 ];
 
 const values = [
@@ -61,6 +64,19 @@ const values = [
 ];
 
 const About = () => {
+  const metricsQuery = useQuery({
+    queryKey: ["platform-metrics", "about"],
+    queryFn: getPlatformMetrics,
+  });
+
+  const metrics = metricsQuery.data;
+  const stats = [
+    { value: metricsQuery.isLoading ? "--" : formatCompactNumber(metrics?.campusActivity ?? 0), label: "Activity Signals", icon: Users },
+    { value: metricsQuery.isLoading ? "--" : formatCompactNumber(metrics?.universities ?? 0), label: "Universities", icon: BookOpen },
+    { value: metricsQuery.isLoading ? "--" : formatCompactNumber(metrics?.publicGists ?? 0), label: "Gists", icon: MessageCircle },
+    { value: metricsQuery.isLoading ? "--" : formatCompactNumber(metrics?.publicListings ?? 0), label: "Listings", icon: Star },
+  ];
+
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
@@ -116,7 +132,7 @@ const About = () => {
           <div className="container px-4">
             <div className="text-center mb-12">
               <h2 className="text-3xl font-display font-bold mb-4">Our Journey</h2>
-              <p className="text-muted-foreground">From an idea to impacting 100,000+ students</p>
+              <p className="text-muted-foreground">From an idea to a live campus platform</p>
             </div>
             <div className="max-w-3xl mx-auto">
               <div className="relative">
@@ -183,12 +199,7 @@ const About = () => {
         <section className="py-16 bg-muted/30">
           <div className="container px-4">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
-              {[
-                { value: "100K+", label: "Students", icon: Users },
-                { value: "25+", label: "Universities", icon: BookOpen },
-                { value: "1M+", label: "Posts", icon: MessageCircle },
-                { value: "4.8/5", label: "Rating", icon: Star },
-              ].map((stat, i) => (
+              {stats.map((stat, i) => (
                 <div key={i}>
                   <stat.icon className="w-8 h-8 mx-auto text-primary mb-3" />
                   <p className="text-3xl font-display font-bold">{stat.value}</p>

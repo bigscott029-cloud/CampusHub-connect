@@ -106,14 +106,25 @@ const CreateHostelListing = () => {
     setIsSubmitting(true);
     try {
       const { profile } = await getProfileWithUniversity(user.id);
+      if ((profile as any)?.student_verification_status !== "verified") {
+        toast.error("Please complete student verification before listing a room or hostel.");
+        navigate("/profile/edit");
+        return;
+      }
       const uploadedImages = await uploadImages();
       const httpImages = [...formData.imageUrls.filter(img => img.startsWith("http")), ...uploadedImages];
-      const { data: listing, error } = await supabase.from("hostel_listings").insert({
+      const price = parseFloat(formData.price);
+      const studentServiceFee = price * 0.1;
+      const { data: listing, error } = await (supabase as any).from("hostel_listings").insert({
         user_id: user.id, title: formData.title, description: formData.description,
-        price: parseFloat(formData.price), price_period: formData.pricePeriod,
+        price, price_period: formData.pricePeriod,
         location: formData.location, hostel_type: formData.hostelType,
         phone_number: formData.phoneNumber, amenities: formData.amenities,
         images: httpImages, status: "pending", university_id: profile?.university_id ?? null,
+        student_service_fee_rate: 0.1,
+        student_service_fee_amount: studentServiceFee,
+        total_student_price: price + studentServiceFee,
+        escrow_status: "not_started",
       }).select("id").single();
       if (error) throw error;
       await supabase.from("admin_requests").insert({ user_id: user.id, request_type: "hostel_listing", reference_id: listing.id, status: "pending" });

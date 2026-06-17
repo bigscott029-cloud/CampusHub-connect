@@ -256,15 +256,17 @@ const Safety = () => {
             </div>
             <div className="grid md:grid-cols-3 gap-6 max-w-3xl mx-auto">
               {[
-                { icon: Mail, title: "Email Us", detail: "safety@bigscott.com", action: "Send Email" },
-                { icon: MessageCircle, title: "In-App Report", detail: "Available on every post", action: "Learn How" },
-                { icon: Phone, title: "Emergency", detail: "For urgent safety concerns", action: "Contact Now" },
+                { icon: Mail, title: "Email Us", detail: "safety@campushub.ng", action: "Send Email", href: "mailto:safety@campushub.ng" },
+                { icon: MessageCircle, title: "In-App Report", detail: "Available on every post", action: "Learn How", href: "/anonymous" },
+                { icon: Phone, title: "Emergency", detail: "For urgent safety concerns", action: "Contact Now", href: "mailto:safety@campushub.ng?subject=Urgent%20Safety%20Concern" },
               ].map((item, i) => (
                 <Card key={i} className="glass-card text-center p-6">
                   <item.icon className="w-8 h-8 mx-auto text-primary mb-4" />
                   <h3 className="font-semibold mb-1">{item.title}</h3>
                   <p className="text-sm text-muted-foreground mb-4">{item.detail}</p>
-                  <Button variant="outline" size="sm">{item.action}</Button>
+                  <Button variant="outline" size="sm" asChild>
+                    {item.href.startsWith("/") ? <Link to={item.href}>{item.action}</Link> : <a href={item.href}>{item.action}</a>}
+                  </Button>
                 </Card>
               ))}
             </div>

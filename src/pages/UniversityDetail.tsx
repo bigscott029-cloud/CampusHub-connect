@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
   BookOpen,
+  Building2,
   Home,
   MapPin,
   MessageSquare,
@@ -28,9 +29,9 @@ const UniversityDetail = () => {
     queryKey: ["university-detail", slug],
     enabled: Boolean(slug),
     queryFn: async () => {
-      const { data: university, error: universityError } = await supabase
+      const { data: university, error: universityError } = await (supabase as any)
         .from("universities")
-        .select("id, name, slug, location, logo_url")
+        .select("id, name, slug, location, logo_url, institution_type, ownership, state, region, accent_color, community_prompt, campus_motto, website_url")
         .eq("slug", slug ?? "")
         .maybeSingle();
 
@@ -127,6 +128,8 @@ const UniversityDetail = () => {
   });
 
   const data = universityQuery.data;
+  const accentColor = data?.university?.accent_color || "#2563eb";
+  const institutionType = data?.university?.institution_type?.replace(/_/g, " ") || "institution";
 
   const quickStats = useMemo(() => {
     if (!data) return [];
@@ -169,18 +172,31 @@ const UniversityDetail = () => {
         ) : (
           <>
             <section className="relative overflow-hidden pb-12 pt-20">
-              <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-accent/10 to-hostel/10" />
+              <div
+                className="absolute inset-0"
+                style={{
+                  background: `linear-gradient(135deg, ${accentColor}24, ${accentColor}10 45%, hsl(var(--background)) 100%)`,
+                }}
+              />
               <div className="container relative px-4 pt-8">
                 <div className="flex flex-col gap-6 md:flex-row md:items-start">
-                  <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-3xl bg-primary/10 shrink-0">
+                  <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-3xl" style={{ backgroundColor: `${accentColor}20` }}>
                     {data.university.logo_url ? (
                       <img src={data.university.logo_url} alt={data.university.name} className="h-full w-full object-cover" />
                     ) : (
-                      <span className="text-4xl font-bold text-primary">{data.university.name.charAt(0)}</span>
+                      <span className="text-4xl font-bold" style={{ color: accentColor }}>{data.university.name.charAt(0)}</span>
                     )}
                   </div>
 
                   <div className="flex-1">
+                    <div className="mb-3 flex flex-wrap gap-2">
+                      <Badge variant="secondary" className="capitalize">
+                        <Building2 className="mr-1 h-3 w-3" />
+                        {institutionType}
+                      </Badge>
+                      {data.university.ownership && <Badge variant="outline">{data.university.ownership}</Badge>}
+                      {data.university.region && <Badge variant="outline">{data.university.region}</Badge>}
+                    </div>
                     <h1 className="mb-2 text-3xl font-display font-bold md:text-4xl">{data.university.name}</h1>
                     <div className="mb-4 flex flex-wrap items-center gap-4 text-muted-foreground">
                       <span className="flex items-center gap-1">
@@ -200,7 +216,7 @@ const UniversityDetail = () => {
                       </span>
                     </div>
                     <p className="max-w-3xl text-muted-foreground">
-                      Explore live campus activity from the production database: recent gists, open listings, housing opportunities, anonymous posts, and roommate requests tied to {data.university.name}.
+                      {data.university.community_prompt || `Explore live campus activity from the production database: recent gists, open listings, housing opportunities, anonymous posts, and roommate requests tied to ${data.university.name}.`}
                     </p>
                   </div>
 
@@ -303,11 +319,11 @@ const UniversityDetail = () => {
                       </Card>
                     </div>
 
-                    <Card className="glass-card">
-                      <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                          <TrendingUp className="h-5 w-5 text-primary" />
-                          Campus Snapshot
+	                    <Card className="glass-card">
+	                      <CardHeader>
+	                        <CardTitle className="flex items-center gap-2">
+	                          <TrendingUp className="h-5 w-5 text-primary" />
+	                          Campus Snapshot
                         </CardTitle>
                       </CardHeader>
                       <CardContent>
@@ -343,10 +359,35 @@ const UniversityDetail = () => {
                                 : "No trending hashtags yet from recent public gists."}
                             </p>
                           </div>
+	                        </div>
+	                      </CardContent>
+	                    </Card>
+
+                    <Card className="glass-card border-l-4" style={{ borderLeftColor: accentColor }}>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <Building2 className="h-5 w-5" style={{ color: accentColor }} />
+                          Campus Identity
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="grid gap-4 md:grid-cols-3">
+                        <div>
+                          <p className="text-xs uppercase text-muted-foreground">Region</p>
+                          <p className="font-semibold">{data.university.region || "Nigeria"}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs uppercase text-muted-foreground">State</p>
+                          <p className="font-semibold">{data.university.state || "Not specified"}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs uppercase text-muted-foreground">Personality</p>
+                          <p className="text-sm text-muted-foreground">
+                            {data.university.campus_motto || "A focused school community with local campus tools."}
+                          </p>
                         </div>
                       </CardContent>
                     </Card>
-                  </TabsContent>
+	                  </TabsContent>
 
                   <TabsContent value="gists" className="space-y-4">
                     {data.posts.length === 0 ? (

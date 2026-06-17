@@ -1,7 +1,10 @@
 import { Twitter, Instagram, Facebook, Mail, MapPin, Shield } from "lucide-react";
+import { Link } from "react-router-dom";
 import campusHubLogo from "@/assets/campus-hub-logo.png";
 
 const Footer = () => {
+  const contactHref = "mailto:hello@campushub.ng";
+
   return (
     <footer className="bg-foreground text-background py-16">
       <div className="container px-4">
@@ -15,37 +18,37 @@ const Footer = () => {
               Your trusted campus platform. Connecting students across universities with news, communities, and resources.
             </p>
             <div className="flex items-center gap-4">
-              <a href="#" className="w-10 h-10 rounded-full bg-background/10 flex items-center justify-center hover:bg-background/20 transition-colors"><Twitter className="w-5 h-5" /></a>
-              <a href="#" className="w-10 h-10 rounded-full bg-background/10 flex items-center justify-center hover:bg-background/20 transition-colors"><Instagram className="w-5 h-5" /></a>
-              <a href="#" className="w-10 h-10 rounded-full bg-background/10 flex items-center justify-center hover:bg-background/20 transition-colors"><Facebook className="w-5 h-5" /></a>
+              <a href={`${contactHref}?subject=CampusHub%20Twitter`} aria-label="Contact CampusHub about Twitter" className="w-10 h-10 rounded-full bg-background/10 flex items-center justify-center hover:bg-background/20 transition-colors"><Twitter className="w-5 h-5" /></a>
+              <a href={`${contactHref}?subject=CampusHub%20Instagram`} aria-label="Contact CampusHub about Instagram" className="w-10 h-10 rounded-full bg-background/10 flex items-center justify-center hover:bg-background/20 transition-colors"><Instagram className="w-5 h-5" /></a>
+              <a href={`${contactHref}?subject=CampusHub%20Facebook`} aria-label="Contact CampusHub about Facebook" className="w-10 h-10 rounded-full bg-background/10 flex items-center justify-center hover:bg-background/20 transition-colors"><Facebook className="w-5 h-5" /></a>
             </div>
           </div>
           <div>
             <h4 className="font-display font-bold mb-4">Product</h4>
             <ul className="space-y-3">
-              <li><a href="#" className="text-background/70 hover:text-background transition-colors text-sm">Features</a></li>
-              <li><a href="#" className="text-background/70 hover:text-background transition-colors text-sm">Campus Gists</a></li>
-              <li><a href="#" className="text-background/70 hover:text-background transition-colors text-sm">Anonymous Zone</a></li>
-              <li><a href="#" className="text-background/70 hover:text-background transition-colors text-sm">Hostel Hub</a></li>
-              <li><a href="#" className="text-background/70 hover:text-background transition-colors text-sm">Marketplace</a></li>
+              <li><Link to="/features" className="text-background/70 hover:text-background transition-colors text-sm">Features</Link></li>
+              <li><Link to="/feed" className="text-background/70 hover:text-background transition-colors text-sm">Campus Gists</Link></li>
+              <li><Link to="/anonymous" className="text-background/70 hover:text-background transition-colors text-sm">Anonymous Zone</Link></li>
+              <li><Link to="/hostel" className="text-background/70 hover:text-background transition-colors text-sm">Hostel Hub</Link></li>
+              <li><Link to="/marketplace" className="text-background/70 hover:text-background transition-colors text-sm">Marketplace</Link></li>
             </ul>
           </div>
           <div>
             <h4 className="font-display font-bold mb-4">Company</h4>
             <ul className="space-y-3">
-              <li><a href="#" className="text-background/70 hover:text-background transition-colors text-sm">About Us</a></li>
-              <li><a href="#" className="text-background/70 hover:text-background transition-colors text-sm">Partner Universities</a></li>
-              <li><a href="#" className="text-background/70 hover:text-background transition-colors text-sm">Careers</a></li>
-              <li><a href="#" className="text-background/70 hover:text-background transition-colors text-sm">Contact</a></li>
+              <li><Link to="/about" className="text-background/70 hover:text-background transition-colors text-sm">About Us</Link></li>
+              <li><Link to="/universities" className="text-background/70 hover:text-background transition-colors text-sm">Partner Institutions</Link></li>
+              <li><a href={`${contactHref}?subject=CampusHub%20Careers`} className="text-background/70 hover:text-background transition-colors text-sm">Careers</a></li>
+              <li><a href={contactHref} className="text-background/70 hover:text-background transition-colors text-sm">Contact</a></li>
             </ul>
           </div>
           <div>
             <h4 className="font-display font-bold mb-4">Safety & Legal</h4>
             <ul className="space-y-3">
-              <li><a href="#" className="text-background/70 hover:text-background transition-colors text-sm flex items-center gap-2"><Shield className="w-4 h-4" /> Community Guidelines</a></li>
-              <li><a href="#" className="text-background/70 hover:text-background transition-colors text-sm">Privacy Policy</a></li>
-              <li><a href="#" className="text-background/70 hover:text-background transition-colors text-sm">Terms of Service</a></li>
-              <li><a href="#" className="text-background/70 hover:text-background transition-colors text-sm">Report Abuse</a></li>
+              <li><Link to="/safety" className="text-background/70 hover:text-background transition-colors text-sm flex items-center gap-2"><Shield className="w-4 h-4" /> Community Guidelines</Link></li>
+              <li><a href={`${contactHref}?subject=Privacy%20Policy`} className="text-background/70 hover:text-background transition-colors text-sm">Privacy Policy</a></li>
+              <li><a href={`${contactHref}?subject=Terms%20of%20Service`} className="text-background/70 hover:text-background transition-colors text-sm">Terms of Service</a></li>
+              <li><a href={`${contactHref}?subject=Report%20Abuse`} className="text-background/70 hover:text-background transition-colors text-sm">Report Abuse</a></li>
             </ul>
           </div>
         </div>

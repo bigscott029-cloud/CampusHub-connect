@@ -1,39 +1,78 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useParams, useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ArrowLeft, Hash, Heart, MessageCircle, Share2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { formatRelativeTime } from "@/lib/utils";
 
 interface TrendingPost {
-  id: number;
+  id: string;
+  userId: string;
   author: string;
   content: string;
   likes: number;
   comments: number;
+  time: string;
 }
-
-// Mock data for trending posts
-const mockTrendingPosts: Record<string, TrendingPost[]> = {
-  ExamTimetable: [
-    { id: 1, author: "Student Affairs", content: "The exam timetable for 2025/2026 session is now available! Check your portal.", likes: 234, comments: 45 },
-    { id: 2, author: "CSC Department", content: "CSC exams will begin on Feb 15th. Prepare accordingly! #ExamTimetable", likes: 156, comments: 23 },
-  ],
-  SUGElections: [
-    { id: 1, author: "Electoral Committee", content: "SUG Elections slated for March 5th. Register to vote! #SUGElections", likes: 567, comments: 89 },
-  ],
-  LibraryHours: [
-    { id: 1, author: "Library Admin", content: "Extended library hours during exam period: 6AM - 12AM #LibraryHours", likes: 345, comments: 12 },
-  ],
-  FacultyWeek: [
-    { id: 1, author: "Faculty of Science", content: "Faculty Week starts Monday! Don't miss the cultural night. #FacultyWeek", likes: 890, comments: 156 },
-  ],
-};
 
 const TrendingPosts = () => {
   const { hashtag } = useParams();
   const navigate = useNavigate();
-  const posts = mockTrendingPosts[hashtag || ""] || [];
+  const normalizedHashtag = (hashtag ?? "").replace(/^#/, "").trim();
+
+  const postsQuery = useQuery({
+    queryKey: ["trending-posts", normalizedHashtag],
+    enabled: Boolean(normalizedHashtag),
+    queryFn: async (): Promise<TrendingPost[]> => {
+      const [hashtagResult, contentResult] = await Promise.all([
+        supabase
+          .from("posts")
+          .select("id, user_id, content, likes_count, comments_count, created_at")
+          .contains("hashtags", [normalizedHashtag])
+          .order("created_at", { ascending: false })
+          .limit(30),
+        supabase
+          .from("posts")
+          .select("id, user_id, content, likes_count, comments_count, created_at")
+          .ilike("content", `%#${normalizedHashtag}%`)
+          .order("created_at", { ascending: false })
+          .limit(30),
+      ]);
+
+      if (hashtagResult.error || contentResult.error) {
+        throw hashtagResult.error || contentResult.error;
+      }
+
+      const mergedPosts = new Map<string, any>();
+      for (const post of [...(hashtagResult.data ?? []), ...(contentResult.data ?? [])]) {
+        mergedPosts.set(post.id, post);
+      }
+
+      const rows = [...mergedPosts.values()].sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+      );
+      const userIds = Array.from(new Set(rows.map((post) => post.user_id)));
+      const { data: profiles } = userIds.length
+        ? await (supabase as any).from("profiles").select("user_id, display_name").in("user_id", userIds)
+        : { data: [] };
+      const profileMap = new Map((profiles ?? []).map((profile: any) => [profile.user_id, profile]));
+
+      return rows.map((post) => ({
+        id: post.id,
+        userId: post.user_id,
+        author: profileMap.get(post.user_id)?.display_name || "Campus member",
+        content: post.content,
+        likes: post.likes_count ?? 0,
+        comments: post.comments_count ?? 0,
+        time: formatRelativeTime(post.created_at),
+      }));
+    },
+  });
+
+  const posts = postsQuery.data ?? [];
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
@@ -47,12 +86,18 @@ const TrendingPosts = () => {
           </div>
           <div>
             <h1 className="text-2xl font-display font-bold">#{hashtag}</h1>
-            <p className="text-sm text-muted-foreground">{posts.length} posts</p>
+            <p className="text-sm text-muted-foreground">{postsQuery.isLoading ? "Loading posts..." : `${posts.length} posts`}</p>
           </div>
         </div>
       </div>
 
-      {posts.length === 0 ? (
+      {postsQuery.isLoading ? (
+        <Card className="glass-card">
+          <CardContent className="py-12 text-center text-sm text-muted-foreground">
+            Loading hashtag posts...
+          </CardContent>
+        </Card>
+      ) : posts.length === 0 ? (
         <Card className="glass-card">
           <CardContent className="py-12 text-center">
             <Hash className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
@@ -73,7 +118,7 @@ const TrendingPosts = () => {
                   </Avatar>
                   <div>
                     <p className="font-semibold text-sm">{post.author}</p>
-                    <p className="text-xs text-muted-foreground">2 hours ago</p>
+                    <p className="text-xs text-muted-foreground">{post.time}</p>
                   </div>
                 </div>
               </CardHeader>

@@ -7,6 +7,7 @@ import {
   Users,
   ArrowRight
 } from "lucide-react";
+import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 
 const modules = [
@@ -16,7 +17,8 @@ const modules = [
     description: "Stay updated with trending news, events, and announcements from your university.",
     color: "primary",
     bgClass: "module-gists",
-    features: ["Trending Posts", "Events", "Department Updates"]
+    features: ["Trending Posts", "Events", "Department Updates"],
+    route: "/feed"
   },
   {
     icon: MessageCircle,
@@ -24,7 +26,8 @@ const modules = [
     description: "Share confessions, ask questions, and connect without revealing your identity.",
     color: "anonymous",
     bgClass: "module-anonymous",
-    features: ["Confessions", "Advice", "Questions"]
+    features: ["Confessions", "Advice", "Questions"],
+    route: "/anonymous"
   },
   {
     icon: Home,
@@ -32,7 +35,8 @@ const modules = [
     description: "Find verified hostels, roommates, and accommodation near your campus.",
     color: "hostel",
     bgClass: "module-hostel",
-    features: ["Verified Listings", "Roommate Finder", "Reviews"]
+    features: ["Verified Listings", "Roommate Finder", "Reviews"],
+    route: "/hostel"
   },
   {
     icon: ShoppingBag,
@@ -40,7 +44,8 @@ const modules = [
     description: "Buy and sell safely within your campus community. Trusted transactions only.",
     color: "marketplace",
     bgClass: "module-marketplace",
-    features: ["Gadgets", "Books", "Services"]
+    features: ["Gadgets", "Books", "Services"],
+    route: "/marketplace"
   },
   {
     icon: BookOpen,
@@ -48,7 +53,8 @@ const modules = [
     description: "Access past questions, notes, GPA calculator, and study resources.",
     color: "academic",
     bgClass: "module-academic",
-    features: ["Past Questions", "Notes", "GPA Calculator"]
+    features: ["Past Questions", "Notes", "GPA Calculator"],
+    route: "/academic"
   },
   {
     icon: Users,
@@ -56,7 +62,8 @@ const modules = [
     description: "Connect with coursemates, department groups, and study partners.",
     color: "primary",
     bgClass: "module-gists",
-    features: ["Course Groups", "Study Partners", "Direct Messages"]
+    features: ["Course Groups", "Study Partners", "Direct Messages"],
+    route: "/messages"
   }
 ];
 
@@ -78,8 +85,9 @@ const ModulesGrid = () => {
         {/* Modules grid */}
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
           {modules.map((module, index) => (
-            <div 
+            <Link
               key={module.title}
+              to={module.route}
               className="group glass-card rounded-2xl p-6 hover-lift cursor-pointer animate-fade-in"
               style={{ animationDelay: `${index * 0.1}s` }}
             >
@@ -112,15 +120,17 @@ const ModulesGrid = () => {
               <div className="flex items-center text-sm font-medium text-primary opacity-0 group-hover:opacity-100 transition-opacity">
                 Explore <ArrowRight className="w-4 h-4 ml-1" />
               </div>
-            </div>
+            </Link>
           ))}
         </div>
 
         {/* CTA */}
         <div className="text-center mt-12">
-          <Button variant="hero" size="lg">
-            Get Started Free
-            <ArrowRight className="ml-2" />
+          <Button variant="hero" size="lg" asChild>
+            <Link to="/signup">
+              Get Started Free
+              <ArrowRight className="ml-2" />
+            </Link>
           </Button>
         </div>
       </div>

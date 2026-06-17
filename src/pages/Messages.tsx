@@ -232,7 +232,9 @@ const Messages = () => {
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <h2 className="font-display font-semibold">Messages</h2>
-            <Button variant="ghost" size="icon"><Plus className="h-4 w-4" /></Button>
+            <Button variant="ghost" size="icon" onClick={() => toast.info("Open a profile or listing to start a new conversation.")}>
+              <Plus className="h-4 w-4" />
+            </Button>
           </div>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -267,7 +269,9 @@ const Messages = () => {
                 <div className="flex items-center gap-1">
                   <Button variant="ghost" size="icon" onClick={() => toast.info(`Calling ${selectedConversation.name}...`)}><Phone className="h-4 w-4" /></Button>
                   <Button variant="ghost" size="icon" onClick={() => toast.info(`Video calling ${selectedConversation.name}...`)}><Video className="h-4 w-4" /></Button>
-                  <Button variant="ghost" size="icon"><MoreVertical className="h-4 w-4" /></Button>
+                  <Button variant="ghost" size="icon" onClick={() => toast.info("Conversation options will appear here once moderation tools are enabled.")}>
+                    <MoreVertical className="h-4 w-4" />
+                  </Button>
                 </div>
               </div>
             </CardHeader>

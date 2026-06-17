@@ -147,7 +147,10 @@ const Settings = () => {
           <Separator />
           <div className="flex items-center justify-between">
             <div><p className="font-medium text-sm text-destructive">Delete Account</p></div>
-            <Button variant="destructive" size="sm"><Trash2 className="w-4 h-4 mr-2" />Delete</Button>
+            <Button variant="destructive" size="sm" onClick={() => toast.info("Account deletion requests are reviewed by support before removal.")}>
+              <Trash2 className="w-4 h-4 mr-2" />
+              Delete
+            </Button>
           </div>
         </CardContent>
       </Card>

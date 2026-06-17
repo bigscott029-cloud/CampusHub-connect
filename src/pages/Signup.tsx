@@ -5,16 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { Eye, EyeOff, Loader2, Check, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-
-interface University {
-  id: string;
-  name: string;
-  slug: string;
-}
+import { InstitutionCombobox, type InstitutionOption } from "@/components/campus/InstitutionCombobox";
 
 const Signup = () => {
   const [displayName, setDisplayName] = useState("");
@@ -22,7 +16,7 @@ const Signup = () => {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [universityId, setUniversityId] = useState("");
-  const [universities, setUniversities] = useState<University[]>([]);
+  const [institutions, setInstitutions] = useState<InstitutionOption[]>([]);
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const { signUp } = useAuth();
@@ -41,14 +35,14 @@ const Signup = () => {
   const isPasswordValid = Object.values(passwordChecks).every(Boolean);
 
   useEffect(() => {
-    const fetchUniversities = async () => {
-      const { data } = await supabase
+    const fetchInstitutions = async () => {
+      const { data } = await (supabase as any)
         .from("universities")
-        .select("id, name, slug")
+        .select("id, name, institution_type, ownership, state, region")
         .order("name");
-      if (data) setUniversities(data);
+      if (data) setInstitutions(data);
     };
-    fetchUniversities();
+    fetchInstitutions();
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -154,19 +148,12 @@ const Signup = () => {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="university">University</Label>
-                <Select value={universityId} onValueChange={setUniversityId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select your university" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {universities.map((uni) => (
-                      <SelectItem key={uni.id} value={uni.id}>
-                        {uni.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label htmlFor="institution">School / Institution</Label>
+                <InstitutionCombobox
+                  institutions={institutions}
+                  value={universityId}
+                  onChange={setUniversityId}
+                />
               </div>
 
               <div className="space-y-2">

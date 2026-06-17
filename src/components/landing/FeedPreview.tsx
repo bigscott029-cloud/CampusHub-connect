@@ -1,47 +1,19 @@
 import { Heart, MessageCircle, Share2, Bookmark, TrendingUp, Clock, MoreHorizontal } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-
-const posts = [
-  {
-    id: 1,
-    author: "Jessica M.",
-    avatar: "JM",
-    university: "University of Lagos",
-    department: "Computer Science",
-    time: "2 hours ago",
-    content: "Just found out the library is open 24/7 during exam period! 📚 Who's pulling an all-nighter with me?",
-    likes: 127,
-    comments: 34,
-    type: "gist",
-    trending: true
-  },
-  {
-    id: 2,
-    author: "Anonymous Eagle",
-    avatar: "🦅",
-    university: "University of Lagos",
-    time: "4 hours ago",
-    content: "To the person who returned my laptop at the cafeteria yesterday — you're a real one. Faith in humanity restored. 🙏",
-    likes: 256,
-    comments: 42,
-    type: "anonymous"
-  },
-  {
-    id: 3,
-    author: "Student Affairs",
-    avatar: "SA",
-    university: "University of Lagos",
-    time: "6 hours ago",
-    content: "📢 IMPORTANT: Course registration deadline extended to Friday. Make sure to complete yours before then!",
-    likes: 89,
-    comments: 12,
-    type: "official",
-    pinned: true
-  }
-];
+import { Card, CardContent } from "@/components/ui/card";
+import { getPublicFeedPreview } from "@/lib/liveMetrics";
 
 const FeedPreview = () => {
+  const feedQuery = useQuery({
+    queryKey: ["public-feed-preview"],
+    queryFn: () => getPublicFeedPreview(3),
+  });
+
+  const posts = feedQuery.data ?? [];
+
   return (
     <section className="py-24 bg-muted/30">
       <div className="container px-4">
@@ -92,20 +64,44 @@ const FeedPreview = () => {
               </div>
             </div>
 
-            <Button variant="hero" size="lg">
-              View Your Feed
+            <Button variant="hero" size="lg" asChild>
+              <Link to="/signup">View Your Feed</Link>
             </Button>
           </div>
 
-          {/* Right side - Feed mockup */}
+          {/* Right side - Live feed preview */}
           <div className="relative">
             <div className="space-y-4">
+              {feedQuery.isLoading && (
+                [0, 1, 2].map((item) => (
+                  <Card key={item} className="glass-card rounded-2xl">
+                    <CardContent className="p-5">
+                      <div className="mb-4 h-10 w-2/3 animate-pulse rounded bg-muted" />
+                      <div className="mb-2 h-4 animate-pulse rounded bg-muted" />
+                      <div className="h-4 w-4/5 animate-pulse rounded bg-muted" />
+                    </CardContent>
+                  </Card>
+                ))
+              )}
+
+              {!feedQuery.isLoading && posts.length === 0 && (
+                <Card className="glass-card rounded-2xl">
+                  <CardContent className="p-8 text-center">
+                    <TrendingUp className="mx-auto mb-3 h-10 w-10 text-muted-foreground" />
+                    <h3 className="mb-2 font-semibold">No public feed activity yet</h3>
+                    <p className="text-sm text-muted-foreground">
+                      The latest gists and anonymous posts will appear here once students start posting.
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
+
               {posts.map((post, index) => (
                 <div 
                   key={post.id}
                   className={`glass-card rounded-2xl p-5 animate-slide-in-right ${
                     post.type === 'anonymous' ? 'border-l-4 border-l-anonymous' : 
-                    post.type === 'official' ? 'border-l-4 border-l-primary' : ''
+                    ''
                   }`}
                   style={{ animationDelay: `${index * 0.15}s` }}
                 >
@@ -132,22 +128,17 @@ const FeedPreview = () => {
                               Trending
                             </span>
                           )}
-                          {post.pinned && (
-                            <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary text-xs font-medium">
-                              Pinned
-                            </span>
-                          )}
                         </div>
                         <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                          {post.department && <span>{post.department}</span>}
-                          <span>•</span>
+                          <span>{post.type === "anonymous" ? "Anonymous Zone" : "Campus Gists"}</span>
+                          <span aria-hidden="true">•</span>
                           <span>{post.time}</span>
                         </div>
                       </div>
                     </div>
-                    <Button variant="ghost" size="icon" className="h-8 w-8">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground">
                       <MoreHorizontal className="w-4 h-4" />
-                    </Button>
+                    </div>
                   </div>
 
                   {/* Content */}
@@ -156,21 +147,21 @@ const FeedPreview = () => {
                   {/* Actions */}
                   <div className="flex items-center justify-between pt-3 border-t border-border/50">
                     <div className="flex items-center gap-4">
-                      <button className="flex items-center gap-1.5 text-muted-foreground hover:text-primary transition-colors">
+                      <span className="flex items-center gap-1.5 text-muted-foreground">
                         <Heart className="w-4 h-4" />
                         <span className="text-xs font-medium">{post.likes}</span>
-                      </button>
-                      <button className="flex items-center gap-1.5 text-muted-foreground hover:text-primary transition-colors">
+                      </span>
+                      <span className="flex items-center gap-1.5 text-muted-foreground">
                         <MessageCircle className="w-4 h-4" />
                         <span className="text-xs font-medium">{post.comments}</span>
-                      </button>
-                      <button className="flex items-center gap-1.5 text-muted-foreground hover:text-primary transition-colors">
+                      </span>
+                      <span className="flex items-center gap-1.5 text-muted-foreground">
                         <Share2 className="w-4 h-4" />
-                      </button>
+                      </span>
                     </div>
-                    <button className="text-muted-foreground hover:text-primary transition-colors">
+                    <span className="text-muted-foreground">
                       <Bookmark className="w-4 h-4" />
-                    </button>
+                    </span>
                   </div>
                 </div>
               ))}

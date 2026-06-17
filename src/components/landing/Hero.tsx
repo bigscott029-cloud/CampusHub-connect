@@ -1,7 +1,18 @@
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Users, Shield, Zap } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
+import { ArrowRight, Building2, ListChecks, Zap } from "lucide-react";
+import { getPlatformMetrics } from "@/lib/liveMetrics";
+import { formatCompactNumber } from "@/lib/utils";
 
 const Hero = () => {
+  const metricsQuery = useQuery({
+    queryKey: ["platform-metrics", "hero"],
+    queryFn: getPlatformMetrics,
+  });
+
+  const metrics = metricsQuery.data;
+
   return (
     <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
       {/* Background gradient orbs */}
@@ -36,12 +47,16 @@ const Hero = () => {
 
           {/* CTA buttons */}
           <div className="flex flex-col sm:flex-row gap-4 justify-center mb-16 animate-fade-in" style={{ animationDelay: '0.3s' }}>
-            <Button variant="hero" size="xl">
-              Join Your Campus
-              <ArrowRight className="ml-2" />
+            <Button variant="hero" size="xl" asChild>
+              <Link to="/signup">
+                Join Your Campus
+                <ArrowRight className="ml-2" />
+              </Link>
             </Button>
-            <Button variant="outline" size="xl">
-              Explore Features
+            <Button variant="outline" size="xl" asChild>
+              <Link to="/features">
+                Explore Features
+              </Link>
             </Button>
           </div>
 
@@ -49,23 +64,29 @@ const Hero = () => {
           <div className="grid grid-cols-3 gap-8 max-w-lg mx-auto animate-fade-in" style={{ animationDelay: '0.4s' }}>
             <div className="text-center">
               <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-primary/10 mx-auto mb-3">
-                <Users className="w-6 h-6 text-primary" />
+                <Zap className="w-6 h-6 text-primary" />
               </div>
-              <div className="font-display text-2xl font-bold">10K+</div>
-              <div className="text-sm text-muted-foreground">Students</div>
+              <div className="font-display text-2xl font-bold">
+                {metricsQuery.isLoading ? "--" : formatCompactNumber(metrics?.campusActivity ?? 0)}
+              </div>
+              <div className="text-sm text-muted-foreground">Activity</div>
             </div>
             <div className="text-center">
               <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-accent/10 mx-auto mb-3">
-                <Shield className="w-6 h-6 text-accent" />
+                <ListChecks className="w-6 h-6 text-accent" />
               </div>
-              <div className="font-display text-2xl font-bold">100%</div>
-              <div className="text-sm text-muted-foreground">Verified</div>
+              <div className="font-display text-2xl font-bold">
+                {metricsQuery.isLoading ? "--" : formatCompactNumber(metrics?.publicListings ?? 0)}
+              </div>
+              <div className="text-sm text-muted-foreground">Listings</div>
             </div>
             <div className="text-center">
               <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-anonymous/10 mx-auto mb-3">
-                <Zap className="w-6 h-6 text-anonymous" />
+                <Building2 className="w-6 h-6 text-anonymous" />
               </div>
-              <div className="font-display text-2xl font-bold">5</div>
+              <div className="font-display text-2xl font-bold">
+                {metricsQuery.isLoading ? "--" : formatCompactNumber(metrics?.universities ?? 0)}
+              </div>
               <div className="text-sm text-muted-foreground">Universities</div>
             </div>
           </div>

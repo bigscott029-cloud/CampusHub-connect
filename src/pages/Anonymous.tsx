@@ -48,7 +48,6 @@ interface AnonymousPost {
   comments: number;
   time: string;
   category: string;
-  mockComments: AnonComment[];
 }
 
 const reportReasons = [
@@ -103,7 +102,6 @@ const Anonymous = () => {
         comments: post.comments_count ?? 0,
         time: formatRelativeTime(post.created_at),
         category: post.category || "confession",
-        mockComments: [],
       })),
     );
   };

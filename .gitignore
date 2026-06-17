@@ -19,6 +19,12 @@ dist-ssr
 .env.test.local
 .env.production.local
 
+# Local database backups can contain auth users, hashes, and private data
+supabase/backups/*
+!supabase/backups/README.md
+*.backup
+*.dump
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

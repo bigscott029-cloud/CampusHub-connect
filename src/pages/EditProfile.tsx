@@ -4,6 +4,7 @@ import {
   AlertTriangle,
   ArrowLeft,
   Camera,
+  ShieldCheck,
   User,
 } from "lucide-react";
 
@@ -33,14 +34,10 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { InstitutionCombobox, type InstitutionOption } from "@/components/campus/InstitutionCombobox";
 
 const departments = ["Computer Science", "Medicine", "Engineering", "Law", "Business Administration", "Mass Communication", "Accounting", "Economics", "Other"];
 const levels = ["100L", "200L", "300L", "400L", "500L", "600L", "Postgraduate"];
-
-interface UniversityOption {
-  id: string;
-  name: string;
-}
 
 const EditProfile = () => {
   const navigate = useNavigate();
@@ -50,7 +47,9 @@ const EditProfile = () => {
   const [universityChangeWarning, setUniversityChangeWarning] = useState(false);
   const [universityChangeCount, setUniversityChangeCount] = useState(0);
   const [initialUniversityId, setInitialUniversityId] = useState("");
-  const [universities, setUniversities] = useState<UniversityOption[]>([]);
+  const [universities, setUniversities] = useState<InstitutionOption[]>([]);
+  const [verificationStatus, setVerificationStatus] = useState("unverified");
+  const [isSubmittingVerification, setIsSubmittingVerification] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
   const [formData, setFormData] = useState({
@@ -61,6 +60,11 @@ const EditProfile = () => {
     level: "",
     universityId: "",
   });
+  const [verificationForm, setVerificationForm] = useState({
+    matricNumber: "",
+    studentIdNumber: "",
+    documentUrl: "",
+  });
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -70,7 +74,7 @@ const EditProfile = () => {
 
       const [{ data: profile }, { data: universityOptions }] = await Promise.all([
         supabase.from("profiles").select("*").eq("user_id", user.id).single(),
-        supabase.from("universities").select("id, name").order("name"),
+        (supabase as any).from("universities").select("id, name, institution_type, ownership, state, region").order("name"),
       ]);
 
       if (profile) {
@@ -84,6 +88,12 @@ const EditProfile = () => {
         });
         setInitialUniversityId(profile.university_id || "");
         setUniversityChangeCount(profile.university_change_count || 0);
+        setVerificationStatus((profile as any).student_verification_status || "unverified");
+        setVerificationForm({
+          matricNumber: (profile as any).matric_number || "",
+          studentIdNumber: (profile as any).student_id_number || "",
+          documentUrl: (profile as any).verification_document_url || "",
+        });
       }
 
       setUniversities(universityOptions || []);
@@ -168,6 +178,71 @@ const EditProfile = () => {
       toast.error("Failed to update profile.");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleSubmitVerification = async () => {
+    if (!user) return;
+    if (!formData.universityId) {
+      toast.error("Please select your school before submitting verification.");
+      return;
+    }
+    if (!verificationForm.matricNumber && !verificationForm.studentIdNumber) {
+      toast.error("Please provide a matric number or student ID number.");
+      return;
+    }
+
+    setIsSubmittingVerification(true);
+    try {
+      const { data: request, error } = await (supabase as any)
+        .from("student_verification_requests")
+        .insert({
+          user_id: user.id,
+          university_id: formData.universityId,
+          matric_number: verificationForm.matricNumber.trim() || null,
+          student_id_number: verificationForm.studentIdNumber.trim() || null,
+          document_url: verificationForm.documentUrl.trim() || null,
+          status: "pending",
+        })
+        .select("id")
+        .single();
+
+      if (error) throw error;
+
+      await (supabase as any)
+        .from("profiles")
+        .update({
+          student_verification_status: "pending",
+          matric_number: verificationForm.matricNumber.trim() || null,
+          student_id_number: verificationForm.studentIdNumber.trim() || null,
+          verification_document_url: verificationForm.documentUrl.trim() || null,
+        })
+        .eq("user_id", user.id);
+
+      await supabase.from("admin_requests").insert({
+        user_id: user.id,
+        request_type: "student_verification",
+        reference_id: request.id,
+        status: "pending",
+      });
+
+      await supabase.from("notifications").insert({
+        user_id: user.id,
+        title: "Student Verification Submitted",
+        description: "Your student details are now queued for review.",
+        type: "verification",
+        is_important: true,
+        reference_type: "student_verification",
+        reference_id: request.id,
+      });
+
+      setVerificationStatus("pending");
+      toast.success("Student verification submitted.");
+    } catch (error) {
+      console.error("Error submitting verification:", error);
+      toast.error("Failed to submit student verification.");
+    } finally {
+      setIsSubmittingVerification(false);
     }
   };
 
@@ -258,23 +333,13 @@ const EditProfile = () => {
           <CardContent className="space-y-4">
             <div>
               <Label>University</Label>
-              <Select
-                value={formData.universityId || "__none__"}
-                onValueChange={(value) => handleUniversitySelect(value === "__none__" ? "" : value)}
+              <InstitutionCombobox
+                institutions={universities}
+                value={formData.universityId}
+                onChange={handleUniversitySelect}
                 disabled={isBootstrapping}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select university" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">No university selected</SelectItem>
-                  {universities.map((university) => (
-                    <SelectItem key={university.id} value={university.id}>
-                      {university.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                placeholder="Search schools in Nigeria..."
+              />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -312,7 +377,7 @@ const EditProfile = () => {
           </CardContent>
         </Card>
 
-        <Card className="glass-card border-warning/30">
+	        <Card className="glass-card border-warning/30">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg">
               <AlertTriangle className="h-5 w-5 text-warning" />
@@ -324,6 +389,57 @@ const EditProfile = () => {
           </CardHeader>
           <CardContent className="text-sm text-muted-foreground">
             The first time you set a university does not count toward the limit. Switching from one existing university to another does.
+          </CardContent>
+	        </Card>
+
+        <Card className="glass-card">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <ShieldCheck className="h-5 w-5 text-primary" />
+              Student Verification
+            </CardTitle>
+            <CardDescription>
+              Required before hostel listings and roommate requests can go live.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="rounded-lg bg-muted/50 p-3 text-sm">
+              Current status: <span className="font-semibold capitalize">{verificationStatus.replace(/_/g, " ")}</span>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div>
+                <Label>Matric Number</Label>
+                <Input
+                  value={verificationForm.matricNumber}
+                  onChange={(event) => setVerificationForm((prev) => ({ ...prev, matricNumber: event.target.value }))}
+                  placeholder="e.g. CSC/2024/001"
+                />
+              </div>
+              <div>
+                <Label>Student ID Number</Label>
+                <Input
+                  value={verificationForm.studentIdNumber}
+                  onChange={(event) => setVerificationForm((prev) => ({ ...prev, studentIdNumber: event.target.value }))}
+                  placeholder="Optional"
+                />
+              </div>
+            </div>
+            <div>
+              <Label>Verification Document URL</Label>
+              <Input
+                value={verificationForm.documentUrl}
+                onChange={(event) => setVerificationForm((prev) => ({ ...prev, documentUrl: event.target.value }))}
+                placeholder="Optional link to school ID/admission proof"
+              />
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleSubmitVerification}
+              disabled={isSubmittingVerification || verificationStatus === "verified"}
+            >
+              {isSubmittingVerification ? "Submitting..." : verificationStatus === "verified" ? "Verified" : "Submit Verification"}
+            </Button>
           </CardContent>
         </Card>
 

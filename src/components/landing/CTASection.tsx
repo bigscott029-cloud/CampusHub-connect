@@ -1,7 +1,20 @@
 import { Button } from "@/components/ui/button";
+import { useQuery } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
 import { ArrowRight, Sparkles, CheckCircle } from "lucide-react";
+import { getPlatformMetrics } from "@/lib/liveMetrics";
+import { formatCompactNumber } from "@/lib/utils";
 
 const CTASection = () => {
+  const metricsQuery = useQuery({
+    queryKey: ["platform-metrics", "cta"],
+    queryFn: getPlatformMetrics,
+  });
+
+  const activityCount = metricsQuery.isLoading
+    ? "--"
+    : formatCompactNumber(metricsQuery.data?.campusActivity ?? 0);
+
   return (
     <section className="py-24 relative overflow-hidden">
       {/* Background */}
@@ -15,7 +28,7 @@ const CTASection = () => {
         <div className="max-w-3xl mx-auto text-center">
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 mb-8">
             <Sparkles className="w-4 h-4 text-white" />
-            <span className="text-sm font-medium text-white">Join 10,000+ Students</span>
+            <span className="text-sm font-medium text-white">{activityCount} live campus signals</span>
           </div>
 
           <h2 className="font-display text-4xl md:text-5xl font-bold text-white mb-6">
@@ -45,16 +58,20 @@ const CTASection = () => {
             <Button 
               size="xl" 
               className="bg-white text-primary hover:bg-white/90 shadow-lg hover:shadow-xl transition-all"
+              asChild
             >
-              Get Started Now
-              <ArrowRight className="ml-2 w-5 h-5" />
+              <Link to="/signup">
+                Get Started Now
+                <ArrowRight className="ml-2 w-5 h-5" />
+              </Link>
             </Button>
             <Button 
               variant="outline" 
               size="xl"
               className="border-2 border-white/30 text-white bg-white/10 hover:bg-white/20 backdrop-blur-sm"
+              asChild
             >
-              Watch Demo
+              <Link to="/universities">Explore Campuses</Link>
             </Button>
           </div>
         </div>

@@ -5,7 +5,7 @@ interface AdminContextType {
   isAdminLoggedIn: boolean;
   adminUsername: string | null;
   loading: boolean;
-  adminLogin: (username: string, password: string) => Promise<{ success: boolean; message: string }>;
+  adminLogin: (email: string, password: string) => Promise<{ success: boolean; message: string }>;
   adminLogout: () => void;
 }
 
@@ -23,11 +23,11 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
     const sessionData = localStorage.getItem(ADMIN_SESSION_KEY);
     if (sessionData) {
       try {
-        const { username, timestamp } = JSON.parse(sessionData);
+        const { email, username, timestamp } = JSON.parse(sessionData);
         // Session expires after 24 hours
         const dayInMs = 24 * 60 * 60 * 1000;
         if (Date.now() - timestamp < dayInMs) {
-          setAdminUsername(username);
+          setAdminUsername(email || username);
           setIsAdminLoggedIn(true);
         } else {
           localStorage.removeItem(ADMIN_SESSION_KEY);

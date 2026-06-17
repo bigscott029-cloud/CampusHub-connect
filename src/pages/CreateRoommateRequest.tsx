@@ -75,7 +75,13 @@ const CreateRoommateRequest = () => {
     setIsSubmitting(true);
     try {
       const { profile } = await getProfileWithUniversity(user.id);
-      const { data: request, error } = await supabase.from("roommate_requests").insert({
+      if ((profile as any)?.student_verification_status !== "verified") {
+        toast.error("Please complete student verification before posting a roommate request.");
+        navigate("/profile/edit");
+        return;
+      }
+
+      const { data: request, error } = await (supabase as any).from("roommate_requests").insert({
         user_id: user.id,
         title: formData.title,
         description: formData.description,
@@ -85,6 +91,7 @@ const CreateRoommateRequest = () => {
         preferences: formData.preferences.join(", "),
         status: "pending",
         university_id: profile?.university_id ?? null,
+        verification_required: true,
       }).select("id").single();
 
       if (error) throw error;

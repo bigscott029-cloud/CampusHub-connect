@@ -34,6 +34,7 @@ import {
 } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency, formatRelativeTime } from "@/lib/utils";
+import { toast } from "sonner";
 
 const amenityIcons: Record<string, any> = {
   wifi: Wifi,
@@ -124,6 +125,34 @@ const HostelDetail = () => {
     navigate(`/messages?to=${hostel.userId}&ref=hostel:${id}&message=Hi, I'm interested in your hostel listing: "${hostel.title}"`);
   };
 
+  const handleShare = async () => {
+    if (!hostel) return;
+    const shareData = {
+      title: hostel.title,
+      text: `Check this CampusHub hostel listing: ${hostel.title}`,
+      url: window.location.href,
+    };
+
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+        return;
+      }
+
+      await navigator.clipboard.writeText(window.location.href);
+      toast.success("Listing link copied");
+    } catch (error: any) {
+      if (error?.name !== "AbortError") {
+        toast.error("Unable to share this listing right now");
+      }
+    }
+  };
+
+  const handleReport = () => {
+    if (!hostel) return;
+    window.location.href = `mailto:hello@campushub.ng?subject=Report%20Hostel%20Listing&body=Listing:%20${encodeURIComponent(hostel.title)}%0AID:%20${encodeURIComponent(hostel.id)}`;
+  };
+
   if (hostelQuery.isLoading) {
     return <div className="mx-auto max-w-4xl p-8 text-center text-muted-foreground">Loading hostel listing...</div>;
   }
@@ -141,7 +170,7 @@ const HostelDetail = () => {
           <div className="flex items-center gap-2 text-sm text-muted-foreground"><MapPin className="h-4 w-4" /><span>{hostel.location}</span></div>
         </div>
         <Button variant="ghost" size="icon" onClick={() => setIsFavorite(!isFavorite)}><Heart className={`h-5 w-5 ${isFavorite ? "fill-destructive text-destructive" : ""}`} /></Button>
-        <Button variant="ghost" size="icon"><Share2 className="h-5 w-5" /></Button>
+        <Button variant="ghost" size="icon" onClick={handleShare}><Share2 className="h-5 w-5" /></Button>
       </div>
 
       <div className="relative aspect-video overflow-hidden rounded-xl bg-muted">
@@ -235,7 +264,7 @@ const HostelDetail = () => {
                 <Button className="w-full" variant="outline" disabled={!hostel.landlord.phone} onClick={() => setPhoneDialogOpen(true)}><Phone className="mr-2 h-4 w-4" />Call Agent</Button>
               </div>
 
-              <Button variant="ghost" className="w-full text-muted-foreground" size="sm"><Flag className="mr-2 h-4 w-4" />Report Listing</Button>
+              <Button variant="ghost" className="w-full text-muted-foreground" size="sm" onClick={handleReport}><Flag className="mr-2 h-4 w-4" />Report Listing</Button>
             </CardContent>
           </Card>
         </div>

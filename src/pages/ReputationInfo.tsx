@@ -1,4 +1,5 @@
 import { useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -16,6 +17,7 @@ import {
   Crown,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 
 const reputationTiers = [
   { name: "Newcomer", minPoints: 0, icon: Star, color: "text-muted-foreground" },
@@ -40,9 +42,23 @@ const pointsBreakdown = [
 const ReputationInfo = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  
-  // Mock user points
-  const userPoints = 245;
+
+  const profileQuery = useQuery({
+    queryKey: ["reputation-profile", user?.id],
+    enabled: Boolean(user?.id),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("experience_points, reputation_score")
+        .eq("user_id", user!.id)
+        .maybeSingle();
+
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const userPoints = profileQuery.data?.experience_points ?? profileQuery.data?.reputation_score ?? 0;
   const currentTier = reputationTiers.reduce((acc, tier) => 
     userPoints >= tier.minPoints ? tier : acc
   , reputationTiers[0]);

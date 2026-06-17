@@ -1,4 +1,6 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,63 +18,123 @@ import {
   X,
   Image as ImageIcon,
   Video,
-  FileText,
   Type,
-  ChevronLeft,
-  ChevronRight,
-  Eye,
+  Clock,
 } from "lucide-react";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { formatRelativeTime } from "@/lib/utils";
 
 interface Story {
-  id: number;
+  id: string;
   userId: string;
   userName: string;
   avatar: string;
+  avatarUrl: string | null;
   content: {
-    type: "image" | "video" | "text" | "file";
+    type: "image" | "video" | "text";
     url?: string;
     text?: string;
   };
-  viewed: boolean;
-  expiresAt: Date;
+  createdAt: string;
+  expiresAt: string;
 }
-
-const mockStories: Story[] = [];
 
 interface StoriesCarouselProps {
   onCreateStory?: () => void;
 }
 
 const StoriesCarousel = ({ onCreateStory }: StoriesCarouselProps) => {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
   const [selectedStory, setSelectedStory] = useState<Story | null>(null);
   const [storyViewerOpen, setStoryViewerOpen] = useState(false);
   const [createStoryOpen, setCreateStoryOpen] = useState(false);
   const [storyType, setStoryType] = useState<"text" | "image" | "video">("text");
   const [storyContent, setStoryContent] = useState("");
 
+  const storiesQuery = useQuery({
+    queryKey: ["stories-carousel"],
+    queryFn: async (): Promise<Story[]> => {
+      const { data: stories, error } = await supabase
+        .from("stories")
+        .select("id, user_id, content_type, content_url, text_content, created_at, expires_at")
+        .gt("expires_at", new Date().toISOString())
+        .order("created_at", { ascending: false })
+        .limit(30);
+
+      if (error) throw error;
+
+      const userIds = Array.from(new Set((stories ?? []).map((story) => story.user_id)));
+      const { data: profiles } = userIds.length
+        ? await (supabase as any).from("profiles").select("user_id, display_name, avatar_url").in("user_id", userIds)
+        : { data: [] };
+      const profileMap = new Map((profiles ?? []).map((profile: any) => [profile.user_id, profile]));
+
+      return (stories ?? []).map((story) => {
+        const profile = profileMap.get(story.user_id);
+        const userName = profile?.display_name || "Campus member";
+
+        return {
+          id: story.id,
+          userId: story.user_id,
+          userName,
+          avatar: userName.charAt(0).toUpperCase(),
+          avatarUrl: profile?.avatar_url ?? null,
+          content: {
+            type: story.content_type as Story["content"]["type"],
+            url: story.content_url ?? undefined,
+            text: story.text_content ?? undefined,
+          },
+          createdAt: story.created_at,
+          expiresAt: story.expires_at,
+        };
+      });
+    },
+  });
+
+  const stories = storiesQuery.data ?? [];
+
   const viewStory = (story: Story) => {
     setSelectedStory(story);
     setStoryViewerOpen(true);
   };
 
-  const handleCreateStory = () => {
-    if (!storyContent.trim()) {
-      toast.error("Please add content to your story");
-      return;
-    }
-    toast.success("Story posted!");
-    setCreateStoryOpen(false);
-    setStoryContent("");
-  };
+  const createStoryMutation = useMutation({
+    mutationFn: async () => {
+      if (!user) throw new Error("Please sign in to post a story.");
+      if (!storyContent.trim()) throw new Error("Please add content to your story");
+
+      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+      const { error } = await supabase.from("stories").insert({
+        user_id: user.id,
+        content_type: storyType,
+        content_url: storyType === "text" ? null : storyContent.trim(),
+        text_content: storyType === "text" ? storyContent.trim() : null,
+        expires_at: expiresAt,
+      });
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Story posted!");
+      setCreateStoryOpen(false);
+      setStoryContent("");
+      onCreateStory?.();
+      queryClient.invalidateQueries({ queryKey: ["stories-carousel"] });
+    },
+    onError: (error) => toast.error(error.message),
+  });
 
   const navigateStory = (direction: "prev" | "next") => {
     if (!selectedStory) return;
-    const currentIndex = mockStories.findIndex((s) => s.id === selectedStory.id);
+    const currentIndex = stories.findIndex((s) => s.id === selectedStory.id);
+    if (currentIndex < 0) return;
     const newIndex = direction === "next" 
-      ? Math.min(currentIndex + 1, mockStories.length - 1)
+      ? Math.min(currentIndex + 1, stories.length - 1)
       : Math.max(currentIndex - 1, 0);
-    setSelectedStory(mockStories[newIndex]);
+    setSelectedStory(stories[newIndex]);
   };
 
   return (
@@ -142,28 +204,32 @@ const StoriesCarousel = ({ onCreateStory }: StoriesCarouselProps) => {
                     Stories disappear after 24 hours
                   </p>
 
-                  <Button onClick={handleCreateStory} className="w-full">
-                    Post Story
+                  <Button onClick={() => createStoryMutation.mutate()} disabled={createStoryMutation.isPending} className="w-full">
+                    {createStoryMutation.isPending ? "Posting..." : "Post Story"}
                   </Button>
                 </div>
               </DialogContent>
             </Dialog>
 
             {/* Stories */}
-            {mockStories.map((story) => (
+            {storiesQuery.isLoading && (
+              [0, 1, 2].map((item) => (
+                <div key={item} className="flex shrink-0 flex-col items-center gap-1">
+                  <div className="h-16 w-16 animate-pulse rounded-full bg-muted" />
+                  <div className="h-3 w-12 animate-pulse rounded bg-muted" />
+                </div>
+              ))
+            )}
+
+            {stories.map((story) => (
               <button
                 key={story.id}
                 onClick={() => viewStory(story)}
                 className="flex flex-col items-center gap-1 shrink-0"
               >
-                <div
-                  className={`w-16 h-16 rounded-full p-0.5 ${
-                    story.viewed
-                      ? "bg-muted"
-                      : "bg-gradient-to-tr from-primary to-accent"
-                  }`}
-                >
+                <div className="w-16 h-16 rounded-full p-0.5 bg-gradient-to-tr from-primary to-accent">
                   <Avatar className="w-full h-full border-2 border-background">
+                    {story.avatarUrl && <AvatarImage src={story.avatarUrl} alt={story.userName} />}
                     <AvatarFallback className="bg-primary/10 text-primary">
                       {story.avatar}
                     </AvatarFallback>
@@ -186,24 +252,22 @@ const StoriesCarousel = ({ onCreateStory }: StoriesCarouselProps) => {
             <div className="relative bg-gradient-to-br from-primary/20 to-accent/20 aspect-[9/16] flex items-center justify-center">
               {/* Progress bars */}
               <div className="absolute top-0 left-0 right-0 flex gap-1 p-2">
-                {mockStories.map((story, i) => (
-                  <div
-                    key={story.id}
-                    className={`h-0.5 flex-1 rounded-full ${
-                      story.id < selectedStory.id
-                        ? "bg-white"
-                        : story.id === selectedStory.id
-                        ? "bg-white"
-                        : "bg-white/30"
-                    }`}
-                  />
-                ))}
+                {stories.map((story, index) => {
+                  const selectedIndex = stories.findIndex((item) => item.id === selectedStory.id);
+                  return (
+                    <div
+                      key={story.id}
+                      className={`h-0.5 flex-1 rounded-full ${index <= selectedIndex ? "bg-white" : "bg-white/30"}`}
+                    />
+                  );
+                })}
               </div>
 
               {/* User info */}
               <div className="absolute top-8 left-4 right-4 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Avatar className="w-8 h-8">
+                    {selectedStory.avatarUrl && <AvatarImage src={selectedStory.avatarUrl} alt={selectedStory.userName} />}
                     <AvatarFallback className="bg-white/20 text-white text-sm">
                       {selectedStory.avatar}
                     </AvatarFallback>
@@ -232,6 +296,13 @@ const StoriesCarousel = ({ onCreateStory }: StoriesCarouselProps) => {
                     className="max-w-full max-h-[60vh] rounded-lg"
                   />
                 )}
+                {selectedStory.content.type === "video" && (
+                  <video
+                    src={selectedStory.content.url}
+                    controls
+                    className="max-h-[60vh] max-w-full rounded-lg"
+                  />
+                )}
               </div>
 
               {/* Navigation */}
@@ -246,8 +317,8 @@ const StoriesCarousel = ({ onCreateStory }: StoriesCarouselProps) => {
 
               {/* Viewers count */}
               <div className="absolute bottom-4 left-4 flex items-center gap-1 text-white/70 text-sm">
-                <Eye className="w-4 h-4" />
-                <span>12 views</span>
+                <Clock className="w-4 h-4" />
+                <span>{formatRelativeTime(selectedStory.createdAt)}</span>
               </div>
             </div>
           )}

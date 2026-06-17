@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -15,44 +16,48 @@ import {
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  GraduationCap, Calculator, Clock, BookOpen, Users, FileText, Download,
-  Search, Plus, Calendar, Target, AlertTriangle, Brain, Star, Trash2, ArrowLeft, Link2, Copy, ExternalLink,
+  GraduationCap, Calculator, Clock, BookOpen, Users, FileText,
+  Search, Plus, Calendar, Target, AlertTriangle, Brain, Trash2, ArrowLeft,
 } from "lucide-react";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { getProfileWithUniversity } from "@/lib/campus";
 
 const gradePoints: Record<string, number> = { A: 5.0, B: 4.0, C: 3.0, D: 2.0, E: 1.0, F: 0.0 };
 
 interface Course { id: number; name: string; units: number; grade: string; }
 
-const mockExams = [
-  { id: 1, course: "CSC 401 - Database Systems", date: "2026-03-15", time: "9:00 AM", venue: "LT1" },
-  { id: 2, course: "CSC 403 - Software Engineering", date: "2026-03-18", time: "2:00 PM", venue: "LT2" },
-  { id: 3, course: "MTH 301 - Numerical Analysis", date: "2026-03-22", time: "9:00 AM", venue: "LT3" },
-];
-
-const mockResources = [
-  { id: 1, title: "CSC 401 Past Questions (2020-2025)", type: "PDF", downloads: 1234, rating: 4.8 },
-  { id: 2, title: "Database Systems Complete Notes", type: "PDF", downloads: 890, rating: 4.6 },
-  { id: 3, title: "Software Engineering Lecture Slides", type: "PPT", downloads: 567, rating: 4.5 },
-  { id: 4, title: "MTH 301 Formula Sheet", type: "PDF", downloads: 2345, rating: 4.9 },
-];
-
-const mockStudyGroups = [
-  { id: 1, name: "CSC 401 Study Group", members: 45, nextSession: "Tomorrow, 4PM", inviteLink: "https://campushub.ng/group/csc401" },
-  { id: 2, name: "Final Year Project Help", members: 23, nextSession: "Friday, 2PM", inviteLink: "https://campushub.ng/group/fyp" },
-  { id: 3, name: "MTH 301 Problem Solving", members: 67, nextSession: "Saturday, 10AM", inviteLink: "https://campushub.ng/group/mth301" },
-];
-
 const Academic = () => {
   const navigate = useNavigate();
-  const [courses, setCourses] = useState<Course[]>([
-    { id: 1, name: "CSC 401", units: 3, grade: "A" },
-    { id: 2, name: "CSC 403", units: 3, grade: "B" },
-    { id: 3, name: "MTH 301", units: 3, grade: "A" },
-  ]);
+  const { user } = useAuth();
+  const [courses, setCourses] = useState<Course[]>([]);
   const [newCourse, setNewCourse] = useState({ name: "", units: "", grade: "A" });
   const [createGroupOpen, setCreateGroupOpen] = useState(false);
   const [groupForm, setGroupForm] = useState({ name: "", description: "", whatsappLink: "" });
+
+  const examsQuery = useQuery({
+    queryKey: ["academic-exams", user?.id],
+    enabled: Boolean(user),
+    queryFn: async () => {
+      if (!user) return [];
+
+      const { profile } = await getProfileWithUniversity(user.id);
+      let query = supabase
+        .from("exams")
+        .select("id, course_code, course_title, exam_date, department, level")
+        .gte("exam_date", new Date().toISOString())
+        .order("exam_date", { ascending: true });
+
+      if (profile?.university_id) {
+        query = query.eq("university_id", profile.university_id);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
 
   const calculateGPA = () => {
     if (courses.length === 0) return "0.00";
@@ -75,22 +80,9 @@ const Academic = () => {
     return Math.ceil(diff / (1000 * 60 * 60 * 24));
   };
 
-  const handleDownload = (resource: typeof mockResources[0]) => {
-    toast.success(`Downloading ${resource.title}...`);
-  };
-
-  const handleJoinGroup = (group: typeof mockStudyGroups[0]) => {
-    navigate(`/messages?to=${group.name}&message=Hi! I just joined the group.`);
-    toast.success(`Joined ${group.name}!`);
-  };
-
   const handleCreateGroup = () => {
     if (!groupForm.name) { toast.error("Please add a group name"); return; }
-    const inviteLink = `https://campushub.ng/group/${groupForm.name.toLowerCase().replace(/\s+/g, '-')}`;
-    navigator.clipboard.writeText(inviteLink);
-    toast.success("Group created! Invite link copied to clipboard.");
-    setCreateGroupOpen(false);
-    setGroupForm({ name: "", description: "", whatsappLink: "" });
+    toast.error("Study groups are waiting for a database table before launch.");
   };
 
   return (
@@ -159,18 +151,26 @@ const Academic = () => {
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
-              {mockExams.map(exam => {
-                const daysLeft = getDaysUntil(exam.date);
+              {examsQuery.isLoading ? (
+                <p className="text-sm text-muted-foreground">Loading exams...</p>
+              ) : (examsQuery.data ?? []).length === 0 ? (
+                <div className="rounded-xl border border-dashed border-border p-8 text-center">
+                  <Calendar className="mx-auto mb-3 h-10 w-10 text-muted-foreground" />
+                  <p className="text-sm text-muted-foreground">No upcoming exams have been added for your campus.</p>
+                </div>
+              ) : (examsQuery.data ?? []).map(exam => {
+                const daysLeft = getDaysUntil(exam.exam_date);
                 const isUrgent = daysLeft <= 7;
                 return (
                   <div key={exam.id} className={`p-4 rounded-xl border ${isUrgent ? "border-destructive/50 bg-destructive/5" : "border-border/50 bg-muted/30"}`}>
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                       <div>
-                        <h4 className="font-semibold">{exam.course}</h4>
+                        <h4 className="font-semibold">{exam.course_code} - {exam.course_title}</h4>
                         <div className="flex flex-wrap items-center gap-3 mt-2 text-sm text-muted-foreground">
-                          <span className="flex items-center gap-1"><Calendar className="w-4 h-4" />{new Date(exam.date).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}</span>
-                          <span className="flex items-center gap-1"><Clock className="w-4 h-4" />{exam.time}</span>
-                          <Badge variant="outline">{exam.venue}</Badge>
+                          <span className="flex items-center gap-1"><Calendar className="w-4 h-4" />{new Date(exam.exam_date).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}</span>
+                          <span className="flex items-center gap-1"><Clock className="w-4 h-4" />{new Date(exam.exam_date).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}</span>
+                          {exam.department && <Badge variant="outline">{exam.department}</Badge>}
+                          {exam.level && <Badge variant="outline">{exam.level}</Badge>}
                         </div>
                       </div>
                       <div className="text-center md:text-right">
@@ -195,32 +195,14 @@ const Academic = () => {
                 <CardTitle className="flex items-center gap-2"><BookOpen className="w-5 h-5 text-primary" />Study Resources</CardTitle>
                 <div className="flex gap-2">
                   <div className="relative flex-1 md:w-64"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" /><Input placeholder="Search resources..." className="pl-9" /></div>
-                  <Button variant="hero"><Plus className="w-4 h-4 mr-1" />Upload</Button>
+                  <Button variant="hero" onClick={() => toast.info("Resource uploads need a database table before launch.")}><Plus className="w-4 h-4 mr-1" />Upload</Button>
                 </div>
               </div>
             </CardHeader>
             <CardContent>
-              <div className="grid md:grid-cols-2 gap-4">
-                {mockResources.map(resource => (
-                  <Card key={resource.id} className="border bg-muted/30 hover:border-primary/30 transition-colors">
-                    <CardContent className="p-4">
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-start gap-3">
-                          <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0"><FileText className="w-5 h-5 text-primary" /></div>
-                          <div>
-                            <h4 className="font-medium text-sm">{resource.title}</h4>
-                            <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
-                              <Badge variant="outline">{resource.type}</Badge>
-                              <span className="flex items-center gap-1"><Download className="w-3 h-3" />{resource.downloads}</span>
-                              <span className="flex items-center gap-1"><Star className="w-3 h-3 text-warning fill-warning" />{resource.rating}</span>
-                            </div>
-                          </div>
-                        </div>
-                        <Button variant="ghost" size="icon" onClick={() => handleDownload(resource)}><Download className="w-4 h-4" /></Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+              <div className="rounded-xl border border-dashed border-border p-8 text-center">
+                <FileText className="mx-auto mb-3 h-10 w-10 text-muted-foreground" />
+                <p className="text-sm text-muted-foreground">No study resources have been uploaded yet.</p>
               </div>
             </CardContent>
           </Card>
@@ -236,29 +218,10 @@ const Academic = () => {
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
-              {mockStudyGroups.map(group => (
-                <Card key={group.id} className="border bg-muted/30">
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center"><Brain className="w-6 h-6 text-primary" /></div>
-                        <div>
-                          <h4 className="font-semibold">{group.name}</h4>
-                          <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground">
-                            <span className="flex items-center gap-1"><Users className="w-4 h-4" />{group.members} members</span>
-                            <span className="flex items-center gap-1"><Clock className="w-4 h-4" />Next: {group.nextSession}</span>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex gap-2">
-                        <Button variant="ghost" size="icon" onClick={() => { navigator.clipboard.writeText(group.inviteLink); toast.success("Invite link copied!"); }}><Copy className="w-4 h-4" /></Button>
-                        {group.inviteLink && <Button variant="ghost" size="icon" onClick={() => window.open("https://wa.me", "_blank")}><ExternalLink className="w-4 h-4" /></Button>}
-                        <Button variant="outline" onClick={() => handleJoinGroup(group)}>Join Group</Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+              <div className="rounded-xl border border-dashed border-border p-8 text-center">
+                <Brain className="mx-auto mb-3 h-10 w-10 text-muted-foreground" />
+                <p className="text-sm text-muted-foreground">No study groups have been created yet.</p>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

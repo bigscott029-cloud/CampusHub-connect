@@ -43,6 +43,8 @@ const AdminPanel = () => {
   const [roommateRequests, setRoommateRequests] = useState<any[]>([]);
   const [marketplaceRequests, setMarketplaceRequests] = useState<any[]>([]);
   const [anonymousReports, setAnonymousReports] = useState<any[]>([]);
+  const [studentVerificationRequests, setStudentVerificationRequests] = useState<any[]>([]);
+  const [agentRequests, setAgentRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const { adminLogout, adminUsername } = useAdminAuth();
   const navigate = useNavigate();
@@ -59,7 +61,7 @@ const AdminPanel = () => {
       // Fetch hostel listings pending approval
       const { data: hostels, error: hostelError } = await supabase
         .from("hostel_listings")
-        .select("id, title, price, location, status, created_at, user_id")
+        .select("id, title, price, total_student_price, student_service_fee_amount, escrow_status, location, status, created_at, user_id")
         .eq("status", "pending")
         .order("created_at", { ascending: false });
 
@@ -77,7 +79,7 @@ const AdminPanel = () => {
       // Fetch marketplace listings pending approval
       const { data: marketplace, error: marketplaceError } = await supabase
         .from("marketplace_listings")
-        .select("id, title, price, category, is_urgent, status, created_at, user_id")
+        .select("id, title, price, category, is_urgent, status, created_at, user_id, listing_plan, platform_fee_amount, payment_status, target_scope")
         .eq("status", "pending")
         .order("created_at", { ascending: false });
 
@@ -91,10 +93,28 @@ const AdminPanel = () => {
 
       if (reportsError) throw reportsError;
 
+      const { data: studentVerifications, error: studentVerificationError } = await (supabase as any)
+        .from("student_verification_requests")
+        .select("id, user_id, university_id, matric_number, student_id_number, document_url, status, created_at")
+        .eq("status", "pending")
+        .order("created_at", { ascending: false });
+
+      if (studentVerificationError) throw studentVerificationError;
+
+      const { data: agents, error: agentError } = await (supabase as any)
+        .from("agent_verification_requests")
+        .select("id, user_id, university_id, legal_name, phone_number, business_name, fee_amount, status, created_at")
+        .in("status", ["pending_payment", "pending_review"])
+        .order("created_at", { ascending: false });
+
+      if (agentError) throw agentError;
+
       setHostelRequests(hostels || []);
       setRoommateRequests(roommates || []);
       setMarketplaceRequests(marketplace || []);
       setAnonymousReports(reports || []);
+      setStudentVerificationRequests(studentVerifications || []);
+      setAgentRequests(agents || []);
     } catch (error) {
       console.error("Error fetching requests:", error);
       toast.error("Failed to load admin requests");
@@ -106,11 +126,21 @@ const AdminPanel = () => {
   const handleApprove = async (id: string, type: "hostel" | "roommate" | "marketplace") => {
     try {
       const table = type === "hostel" ? "hostel_listings" : type === "roommate" ? "roommate_requests" : "marketplace_listings";
-      const { error } = await supabase.from(table).update({ status: "approved" }).eq("id", id);
+      const request = [...hostelRequests, ...roommateRequests, ...marketplaceRequests].find((item) => item.id === id);
+      const updateData: Record<string, string> = { status: "approved" };
+
+      if (type === "marketplace" && request?.listing_plan === "upfront_fee") {
+        updateData.payment_status = "paid";
+      }
+
+      if (type === "hostel") {
+        updateData.escrow_status = "pending_payment";
+      }
+
+      const { error } = await (supabase as any).from(table).update(updateData).eq("id", id);
 
       if (error) throw error;
 
-      const request = [...hostelRequests, ...roommateRequests, ...marketplaceRequests].find((item) => item.id === id);
       if (request?.user_id) {
         await supabase.from("notifications").insert({
           user_id: request.user_id,
@@ -278,6 +308,92 @@ const AdminPanel = () => {
     }
   };
 
+  const resolveStudentVerification = async (request: any, status: "verified" | "rejected") => {
+    try {
+      const { error } = await (supabase as any)
+        .from("student_verification_requests")
+        .update({ status, admin_notes: `${status} from admin panel` })
+        .eq("id", request.id);
+
+      if (error) throw error;
+
+      await (supabase as any)
+        .from("profiles")
+        .update({
+          student_verification_status: status,
+          matric_number: request.matric_number || null,
+          student_id_number: request.student_id_number || null,
+          verification_document_url: request.document_url || null,
+          verified_at: status === "verified" ? new Date().toISOString() : null,
+        })
+        .eq("user_id", request.user_id);
+
+      await supabase.from("notifications").insert({
+        user_id: request.user_id,
+        title: status === "verified" ? "Student verification approved" : "Student verification rejected",
+        description: status === "verified" ? "You can now submit housing and roommate posts." : "Please review your student details and submit again.",
+        type: "verification",
+        is_important: true,
+      });
+
+      await supabase
+        .from("admin_requests")
+        .update({ status, admin_notes: `${status} from student verification panel` })
+        .eq("reference_id", request.id);
+
+      toast.success(`Student verification ${status}.`);
+      await fetchRequests();
+    } catch (error) {
+      console.error("Error resolving student verification:", error);
+      toast.error("Failed to update student verification.");
+    }
+  };
+
+  const resolveAgentRequest = async (request: any, status: "verified" | "rejected") => {
+    try {
+      const { error } = await (supabase as any)
+        .from("agent_verification_requests")
+        .update({ status, admin_notes: `${status} from admin panel` })
+        .eq("id", request.id);
+
+      if (error) throw error;
+
+      await (supabase as any)
+        .from("profiles")
+        .update({
+          agent_verification_status: status,
+          verified_badge: status === "verified",
+          agent_paid_at: status === "verified" ? new Date().toISOString() : null,
+        })
+        .eq("user_id", request.user_id);
+
+      if (status === "verified") {
+        await (supabase as any)
+          .from("user_roles")
+          .upsert({ user_id: request.user_id, role: "sub_admin" }, { onConflict: "user_id,role" });
+      }
+
+      await supabase.from("notifications").insert({
+        user_id: request.user_id,
+        title: status === "verified" ? "Verified agent approved" : "Agent verification rejected",
+        description: status === "verified" ? "Your verified badge is active. Listing limits now apply to your account." : "Your agent verification was not approved.",
+        type: "verification",
+        is_important: true,
+      });
+
+      await supabase
+        .from("admin_requests")
+        .update({ status, admin_notes: `${status} from agent verification panel` })
+        .eq("reference_id", request.id);
+
+      toast.success(`Agent request ${status}.`);
+      await fetchRequests();
+    } catch (error) {
+      console.error("Error resolving agent request:", error);
+      toast.error("Failed to update agent request.");
+    }
+  };
+
   const renderRequestCard = (request: any, type: "hostel" | "roommate" | "marketplace") => {
     const title = request.title || "Untitled";
     const createdAt = request.created_at ? new Date(request.created_at).toLocaleDateString() : "Unknown";
@@ -297,7 +413,7 @@ const AdminPanel = () => {
               <div>
                 <h3 className="font-semibold">{title}</h3>
                 <p className="text-sm text-muted-foreground">ID: {request.id}</p>
-                <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
+	                <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
                   <span className="flex items-center gap-1">
                     <Clock className="w-3 h-3" />
                     {createdAt}
@@ -305,14 +421,37 @@ const AdminPanel = () => {
                   {price > 0 && (
                     <span className="font-medium text-foreground">₦{(price / 1000).toFixed(0)}K</span>
                   )}
-                  {request.is_urgent && (
-                    <Badge variant="destructive" className="text-xs">
-                      <AlertTriangle className="w-3 h-3 mr-1" />
-                      Urgent
+	                  {request.is_urgent && (
+	                    <Badge variant="destructive" className="text-xs">
+	                      <AlertTriangle className="w-3 h-3 mr-1" />
+	                      Urgent
+	                    </Badge>
+	                  )}
+	                </div>
+                {type === "marketplace" && (
+                  <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                    <Badge variant="outline">{request.listing_plan || "commission"}</Badge>
+                    <Badge variant="outline">{request.target_scope || "local"}</Badge>
+                    <Badge variant={request.payment_status === "paid" || request.payment_status === "not_required" ? "secondary" : "destructive"}>
+                      {request.payment_status || "not_required"}
                     </Badge>
-                  )}
-                </div>
-              </div>
+                    {Number(request.platform_fee_amount ?? 0) > 0 && (
+                      <Badge variant="secondary">Fee ₦{Number(request.platform_fee_amount).toLocaleString()}</Badge>
+                    )}
+                  </div>
+                )}
+                {type === "hostel" && (
+                  <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                    {Number(request.student_service_fee_amount ?? 0) > 0 && (
+                      <Badge variant="secondary">Student fee ₦{Number(request.student_service_fee_amount).toLocaleString()}</Badge>
+                    )}
+                    {Number(request.total_student_price ?? 0) > 0 && (
+                      <Badge variant="outline">Total ₦{Number(request.total_student_price).toLocaleString()}</Badge>
+                    )}
+                    <Badge variant="outline">{request.escrow_status || "not_started"}</Badge>
+                  </div>
+                )}
+	              </div>
             </div>
             <Badge variant={request.status === "pending" ? "secondary" : "default"}>
               {request.status || "pending"}
@@ -324,7 +463,7 @@ const AdminPanel = () => {
               <MessageCircle className="w-4 h-4 mr-1" />
               Message User
             </Button>
-            <Button variant="outline" size="sm">
+            <Button variant="outline" size="sm" onClick={() => toast.info("Review details are shown in this card.")}>
               <Eye className="w-4 h-4 mr-1" />
               View Details
             </Button>
@@ -397,7 +536,7 @@ const AdminPanel = () => {
         <Card className="glass-card">
           <CardContent className="pt-6 text-center">
         <p className="text-3xl font-bold text-accent">
-              {hostelRequests.length + roommateRequests.length + marketplaceRequests.length + anonymousReports.length}
+              {hostelRequests.length + roommateRequests.length + marketplaceRequests.length + anonymousReports.length + studentVerificationRequests.length + agentRequests.length}
             </p>
             <p className="text-sm text-muted-foreground">Total Pending</p>
           </CardContent>
@@ -405,7 +544,7 @@ const AdminPanel = () => {
       </div>
 
       <Tabs defaultValue="hostel" className="space-y-6">
-        <TabsList className="bg-muted/50 p-1">
+        <TabsList className="h-auto flex-wrap bg-muted/50 p-1">
           <TabsTrigger value="hostel" className="gap-1">
             <Home className="w-4 h-4" />
             Hostels ({hostelRequests.length})
@@ -421,6 +560,14 @@ const AdminPanel = () => {
           <TabsTrigger value="reports" className="gap-1">
             <AlertTriangle className="w-4 h-4" />
             Reports ({anonymousReports.length})
+          </TabsTrigger>
+          <TabsTrigger value="students" className="gap-1">
+            <Shield className="w-4 h-4" />
+            Students ({studentVerificationRequests.length})
+          </TabsTrigger>
+          <TabsTrigger value="agents" className="gap-1">
+            <CreditCard className="w-4 h-4" />
+            Agents ({agentRequests.length})
           </TabsTrigger>
         </TabsList>
 
@@ -486,6 +633,78 @@ const AdminPanel = () => {
                   <div className="flex justify-end gap-2 mt-4 border-t border-border/50 pt-4">
                     <Button variant="outline" size="sm" onClick={() => resolveReport(report, "dismissed")}>Dismiss</Button>
                     <Button variant="destructive" size="sm" onClick={() => resolveReport(report, "resolved")}>Resolve</Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))
+          )}
+        </TabsContent>
+
+        <TabsContent value="students" className="space-y-4">
+          {studentVerificationRequests.length === 0 ? (
+            <Card className="glass-card">
+              <CardContent className="py-12 text-center">
+                <Shield className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+                <p className="text-muted-foreground">No pending student verifications</p>
+              </CardContent>
+            </Card>
+          ) : (
+            studentVerificationRequests.map((request) => (
+              <Card key={request.id} className="glass-card">
+                <CardContent className="pt-6">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <h3 className="font-semibold">Student Verification</h3>
+                      <p className="text-sm text-muted-foreground">User: {request.user_id}</p>
+                      <div className="mt-2 space-y-1 text-sm">
+                        {request.matric_number && <p>Matric: {request.matric_number}</p>}
+                        {request.student_id_number && <p>Student ID: {request.student_id_number}</p>}
+                        {request.document_url && (
+                          <a href={request.document_url} target="_blank" rel="noreferrer" className="text-primary hover:underline">
+                            View document
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                    <Badge variant="secondary">{request.status}</Badge>
+                  </div>
+                  <div className="flex justify-end gap-2 mt-4 border-t border-border/50 pt-4">
+                    <Button variant="destructive" size="sm" onClick={() => resolveStudentVerification(request, "rejected")}>Reject</Button>
+                    <Button size="sm" onClick={() => resolveStudentVerification(request, "verified")}>Verify Student</Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))
+          )}
+        </TabsContent>
+
+        <TabsContent value="agents" className="space-y-4">
+          {agentRequests.length === 0 ? (
+            <Card className="glass-card">
+              <CardContent className="py-12 text-center">
+                <CreditCard className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+                <p className="text-muted-foreground">No pending agent requests</p>
+              </CardContent>
+            </Card>
+          ) : (
+            agentRequests.map((request) => (
+              <Card key={request.id} className="glass-card">
+                <CardContent className="pt-6">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <h3 className="font-semibold">{request.legal_name}</h3>
+                      <p className="text-sm text-muted-foreground">User: {request.user_id}</p>
+                      <div className="mt-2 space-y-1 text-sm">
+                        <p>Phone: {request.phone_number}</p>
+                        {request.business_name && <p>Business: {request.business_name}</p>}
+                        <p>One-time fee: ₦{Number(request.fee_amount ?? 20000).toLocaleString()}</p>
+                      </div>
+                    </div>
+                    <Badge variant="secondary">{request.status}</Badge>
+                  </div>
+                  <div className="flex justify-end gap-2 mt-4 border-t border-border/50 pt-4">
+                    <Button variant="destructive" size="sm" onClick={() => resolveAgentRequest(request, "rejected")}>Reject</Button>
+                    <Button size="sm" onClick={() => resolveAgentRequest(request, "verified")}>Approve Agent</Button>
                   </div>
                 </CardContent>
               </Card>

@@ -15,6 +15,7 @@ import {
   Plus,
   Search,
   Shirt,
+  ShieldCheck,
   ShoppingBag,
   Smartphone,
   Sofa,
@@ -80,6 +81,10 @@ interface MarketplaceProduct {
   description: string;
   phone: string;
   views: number;
+  listingPlan: string;
+  targetScope: string;
+  paymentStatus: string;
+  platformFeeAmount: number;
 }
 
 interface CampusRequest {
@@ -136,10 +141,14 @@ const Marketplace = () => {
     location: "",
     phone: "",
     isUrgent: false,
+    listingPlan: "commission",
+    targetScope: "local",
   });
   const [sellFiles, setSellFiles] = useState<File[]>([]);
   const [requestOpen, setRequestOpen] = useState(false);
   const [requestForm, setRequestForm] = useState({ title: "", budget: "", details: "" });
+  const [agentOpen, setAgentOpen] = useState(false);
+  const [agentForm, setAgentForm] = useState({ legalName: "", phone: "", businessName: "" });
   const [activeTab, setActiveTab] = useState("browse");
   const sellImageRef = useRef<HTMLInputElement>(null);
 
@@ -148,7 +157,7 @@ const Marketplace = () => {
     queryFn: async (): Promise<MarketplaceProduct[]> => {
       const { data: listings, error } = await (supabase as any)
         .from("marketplace_listings")
-        .select("id, user_id, title, description, price, category, condition, location, images, is_urgent, created_at, seller_phone, views_count")
+        .select("id, user_id, title, description, price, category, condition, location, images, is_urgent, created_at, seller_phone, views_count, listing_plan, target_scope, payment_status, platform_fee_amount")
         .eq("status", "approved")
         .order("created_at", { ascending: false });
 
@@ -181,6 +190,10 @@ const Marketplace = () => {
           description: listing.description || "No description provided.",
           phone: listing.seller_phone || "",
           views: listing.views_count ?? 0,
+          listingPlan: listing.listing_plan || "commission",
+          targetScope: listing.target_scope || "local",
+          paymentStatus: listing.payment_status || "not_required",
+          platformFeeAmount: Number(listing.platform_fee_amount ?? 0),
         };
       });
     },
@@ -234,6 +247,35 @@ const Marketplace = () => {
         getProfileWithUniversity(user.id),
         uploadListingImages(sellFiles, user.id),
       ]);
+      if (sellForm.listingPlan === "verified_agent") {
+        if ((profile as any)?.agent_verification_status !== "verified") {
+          throw new Error("Verified agent listings require an approved agent account first.");
+        }
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+        const [{ count: todayCount }, { count: monthCount }] = await Promise.all([
+          (supabase as any)
+            .from("marketplace_listings")
+            .select("id", { count: "exact", head: true })
+            .eq("user_id", user.id)
+            .gte("created_at", today.toISOString()),
+          (supabase as any)
+            .from("marketplace_listings")
+            .select("id", { count: "exact", head: true })
+            .eq("user_id", user.id)
+            .gte("created_at", monthStart.toISOString()),
+        ]);
+
+        const dailyLimit = (profile as any)?.agent_daily_post_limit ?? 10;
+        const monthlyLimit = (profile as any)?.agent_monthly_post_limit ?? 100;
+        if ((todayCount ?? 0) >= dailyLimit) throw new Error(`Verified agents can post ${dailyLimit} listings per day.`);
+        if ((monthCount ?? 0) >= monthlyLimit) throw new Error(`Verified agents can post ${monthlyLimit} listings per month.`);
+      }
+      const price = Number(sellForm.price);
+      const platformFeeAmount = sellForm.listingPlan === "upfront_fee" ? price * 0.1 : 0;
+      const paymentStatus = sellForm.listingPlan === "upfront_fee" ? "pending" : "not_required";
 
       const { data: listing, error } = await (supabase as any)
         .from("marketplace_listings")
@@ -241,7 +283,7 @@ const Marketplace = () => {
           user_id: user.id,
           title: sellForm.title.trim(),
           description: sellForm.description.trim() || null,
-          price: Number(sellForm.price),
+          price,
           condition: sellForm.condition || null,
           category: sellForm.category,
           location: sellForm.location.trim() || null,
@@ -250,6 +292,11 @@ const Marketplace = () => {
           images: imageUrls,
           status: "pending",
           university_id: profile?.university_id ?? null,
+          listing_plan: sellForm.listingPlan,
+          target_scope: sellForm.targetScope,
+          commission_rate: 0.1,
+          platform_fee_amount: platformFeeAmount,
+          payment_status: paymentStatus,
         })
         .select("id")
         .single();
@@ -275,9 +322,56 @@ const Marketplace = () => {
     },
     onSuccess: () => {
       setSellSubmitted(true);
-      setSellForm({ title: "", description: "", price: "", condition: "", category: "", location: "", phone: "", isUrgent: false });
+      setSellForm({ title: "", description: "", price: "", condition: "", category: "", location: "", phone: "", isUrgent: false, listingPlan: "commission", targetScope: "local" });
       setSellFiles([]);
       queryClient.invalidateQueries({ queryKey: ["marketplace-listings"] });
+    },
+    onError: (error) => toast.error(error.message),
+  });
+
+  const agentMutation = useMutation({
+    mutationFn: async () => {
+      if (!user) throw new Error("Please sign in to become a verified agent.");
+      if (!agentForm.legalName || !agentForm.phone) throw new Error("Please add your legal name and phone number.");
+
+      const { profile } = await getProfileWithUniversity(user.id);
+      const { data: request, error } = await (supabase as any)
+        .from("agent_verification_requests")
+        .insert({
+          user_id: user.id,
+          university_id: profile?.university_id ?? null,
+          legal_name: agentForm.legalName.trim(),
+          phone_number: agentForm.phone.trim(),
+          business_name: agentForm.businessName.trim() || null,
+          fee_amount: 20000,
+          status: "pending_payment",
+        })
+        .select("id")
+        .single();
+
+      if (error) throw error;
+
+      await supabase.from("admin_requests").insert({
+        user_id: user.id,
+        request_type: "agent_verification",
+        reference_id: request.id,
+        status: "pending",
+      });
+
+      await supabase.from("notifications").insert({
+        user_id: user.id,
+        title: "Agent Verification Started",
+        description: "Your verified agent request has been submitted. Admin will confirm your details and payment.",
+        type: "verification",
+        is_important: true,
+        reference_type: "agent_verification",
+        reference_id: request.id,
+      });
+    },
+    onSuccess: () => {
+      toast.success("Agent verification request submitted.");
+      setAgentOpen(false);
+      setAgentForm({ legalName: "", phone: "", businessName: "" });
     },
     onError: (error) => toast.error(error.message),
   });
@@ -316,6 +410,9 @@ const Marketplace = () => {
         </div>
         <Button variant="hero" onClick={() => { setSellOpen(true); setSellSubmitted(false); }}>
           <Plus className="mr-1 h-4 w-4" />Sell Something
+        </Button>
+        <Button variant="outline" onClick={() => setAgentOpen(true)}>
+          <ShieldCheck className="mr-1 h-4 w-4" />Become Agent
         </Button>
       </div>
 
@@ -493,6 +590,37 @@ const Marketplace = () => {
                 <div><Label>Condition</Label><Select value={sellForm.condition} onValueChange={(value) => setSellForm({ ...sellForm, condition: value })}><SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger><SelectContent><SelectItem value="Like New">Like New</SelectItem><SelectItem value="Good">Good</SelectItem><SelectItem value="Fair">Fair</SelectItem></SelectContent></Select></div>
                 <div><Label>Location</Label><Input placeholder="e.g. Block A" value={sellForm.location} onChange={(event) => setSellForm({ ...sellForm, location: event.target.value })} /></div>
               </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Listing Model</Label>
+                  <Select value={sellForm.listingPlan} onValueChange={(value) => setSellForm({ ...sellForm, listingPlan: value })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="commission">Free now, 10% on sale</SelectItem>
+                      <SelectItem value="upfront_fee">Pay 10% upfront</SelectItem>
+                      <SelectItem value="verified_agent">Verified agent listing</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Target</Label>
+                  <Select value={sellForm.targetScope} onValueChange={(value) => setSellForm({ ...sellForm, targetScope: value })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="local">My school/local area</SelectItem>
+                      <SelectItem value="regional">My region</SelectItem>
+                      <SelectItem value="nationwide">Nationwide</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <Card className="border-primary/20 bg-primary/5">
+                <CardContent className="py-3 text-sm text-muted-foreground">
+                  {sellForm.listingPlan === "commission" && "You can list for free now. Admin approval is required, and 10% is due from the sale amount when the item sells."}
+                  {sellForm.listingPlan === "upfront_fee" && `A 10% listing fee is due before approval: ${formatCurrency(Number(sellForm.price || 0) * 0.1)}.`}
+                  {sellForm.listingPlan === "verified_agent" && "Verified agents pay a one-time ₦20,000 verification fee, then list with daily and monthly limits after admin approval."}
+                </CardContent>
+              </Card>
               <div><Label>Phone</Label><Input type="tel" placeholder="+234..." value={sellForm.phone} onChange={(event) => setSellForm({ ...sellForm, phone: event.target.value })} /></div>
               <div>
                 <Label>Images (up to 6)</Label>
@@ -530,6 +658,25 @@ const Marketplace = () => {
             <div><Label>Budget</Label><Input placeholder="e.g. ₦200K - ₦300K" value={requestForm.budget} onChange={(event) => setRequestForm({ ...requestForm, budget: event.target.value })} /></div>
             <div><Label>Details</Label><Textarea placeholder="Any specific requirements..." value={requestForm.details} onChange={(event) => setRequestForm({ ...requestForm, details: event.target.value })} rows={3} /></div>
             <Button variant="hero" className="w-full" onClick={handleRequestSubmit}>Post Request</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={agentOpen} onOpenChange={setAgentOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Become a Verified Agent</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <Card className="border-primary/20 bg-primary/5">
+              <CardContent className="py-3 text-sm text-muted-foreground">
+                Verified agents pay a one-time {formatCurrency(20000)} fee, then receive a blue verified badge after admin approval. Limits: 10 listings per day and 100 per month.
+              </CardContent>
+            </Card>
+            <div><Label>Legal Name *</Label><Input value={agentForm.legalName} onChange={(event) => setAgentForm({ ...agentForm, legalName: event.target.value })} placeholder="Your full legal name" /></div>
+            <div><Label>Phone Number *</Label><Input type="tel" value={agentForm.phone} onChange={(event) => setAgentForm({ ...agentForm, phone: event.target.value })} placeholder="+234..." /></div>
+            <div><Label>Business Name</Label><Input value={agentForm.businessName} onChange={(event) => setAgentForm({ ...agentForm, businessName: event.target.value })} placeholder="Optional" /></div>
+            <Button variant="hero" className="w-full" onClick={() => agentMutation.mutate()} disabled={agentMutation.isPending}>
+              {agentMutation.isPending ? "Submitting..." : "Submit Agent Request"}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

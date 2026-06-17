@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import Navbar from "@/components/landing/Navbar";
 import Footer from "@/components/landing/Footer";
 import { Button } from "@/components/ui/button";
@@ -22,6 +23,8 @@ import {
   Clock,
   Star,
 } from "lucide-react";
+import { getPlatformMetrics } from "@/lib/liveMetrics";
+import { formatCompactNumber } from "@/lib/utils";
 
 const features = [
   {
@@ -74,14 +77,20 @@ const features = [
   },
 ];
 
-const stats = [
-  { icon: Users, value: "50,000+", label: "Active Students" },
-  { icon: Globe, value: "25+", label: "Universities" },
-  { icon: TrendingUp, value: "1M+", label: "Monthly Posts" },
-  { icon: Clock, value: "24/7", label: "Community Support" },
-];
-
 const Features = () => {
+  const metricsQuery = useQuery({
+    queryKey: ["platform-metrics", "features"],
+    queryFn: getPlatformMetrics,
+  });
+
+  const metrics = metricsQuery.data;
+  const stats = [
+    { icon: Globe, value: metricsQuery.isLoading ? "--" : formatCompactNumber(metrics?.universities ?? 0), label: "Universities" },
+    { icon: TrendingUp, value: metricsQuery.isLoading ? "--" : formatCompactNumber(metrics?.publicGists ?? 0), label: "Campus Gists" },
+    { icon: Users, value: metricsQuery.isLoading ? "--" : formatCompactNumber(metrics?.anonymousPosts ?? 0), label: "Anonymous Posts" },
+    { icon: Clock, value: metricsQuery.isLoading ? "--" : formatCompactNumber(metrics?.publicListings ?? 0), label: "Live Listings" },
+  ];
+
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
@@ -233,7 +242,7 @@ const Features = () => {
                     Ready to Transform Your Campus Experience?
                   </h2>
                   <p className="text-muted-foreground mb-8">
-                    Join thousands of students already using Big Scott to make the most of university life.
+                    Join the campus community already creating live gists, listings, and study activity in Big Scott.
                   </p>
                   <Button variant="hero" size="lg" asChild>
                     <Link to="/signup">Sign Up Now - It's Free!</Link>
