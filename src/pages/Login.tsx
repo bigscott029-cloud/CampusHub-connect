@@ -44,13 +44,8 @@ const Login = () => {
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         {/* Logo */}
-        <div className="flex items-center justify-center gap-2 mb-8">
-          <div className="w-10 h-10 rounded-xl gradient-bg flex items-center justify-center">
-            <span className="text-primary-foreground font-bold text-xl">C</span>
-          </div>
-          <span className="font-display font-bold text-2xl">
-            Campus<span className="text-primary">Hub</span>
-          </span>
+        <div className="mb-8 flex justify-center">
+          <img src="/CampusHub-logo.png" alt="CampusHub" className="h-16 w-auto max-w-[220px] object-contain" />
         </div>
 
         <Card className="glass-card">

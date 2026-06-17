@@ -74,7 +74,7 @@ const EditProfile = () => {
 
       const [{ data: profile }, { data: universityOptions }] = await Promise.all([
         supabase.from("profiles").select("*").eq("user_id", user.id).single(),
-        (supabase as any).from("universities").select("id, name, institution_type, ownership, state, region").order("name"),
+        (supabase as any).from("universities").select("id, name, institution_type, ownership, state, region, aliases").order("name"),
       ]);
 
       if (profile) {

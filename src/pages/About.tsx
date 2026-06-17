@@ -22,13 +22,6 @@ import {
 import { getPlatformMetrics } from "@/lib/liveMetrics";
 import { formatCompactNumber } from "@/lib/utils";
 
-const team = [
-  { name: "Scott Adams", role: "Founder & CEO", avatar: "S" },
-  { name: "Amaka Obi", role: "Head of Product", avatar: "A" },
-  { name: "Tunde Bakare", role: "Lead Engineer", avatar: "T" },
-  { name: "Fatima Hassan", role: "Community Lead", avatar: "F" },
-];
-
 const timeline = [
   { year: "2023", title: "The Idea", desc: "Born from the need for a unified campus experience" },
   { year: "2024", title: "Beta Launch", desc: "First campus workflows tested with early users" },
@@ -174,24 +167,28 @@ const About = () => {
           </div>
         </section>
 
-        {/* Team */}
+        {/* Operator */}
         <section className="py-20">
           <div className="container px-4">
             <div className="text-center mb-12">
-              <h2 className="text-3xl font-display font-bold mb-4">Meet the Team</h2>
-              <p className="text-muted-foreground">The people making CampusHub possible</p>
+              <h2 className="text-3xl font-display font-bold mb-4">Built with Local Context</h2>
+              <p className="text-muted-foreground">Real support for a real campus community</p>
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-6 max-w-3xl mx-auto">
-              {team.map((member, i) => (
-                <Card key={i} className="glass-card text-center p-6">
-                  <div className="w-20 h-20 rounded-full gradient-bg flex items-center justify-center mx-auto mb-4">
-                    <span className="text-primary-foreground font-bold text-2xl">{member.avatar}</span>
-                  </div>
-                  <h3 className="font-semibold">{member.name}</h3>
-                  <p className="text-sm text-muted-foreground">{member.role}</p>
-                </Card>
-              ))}
-            </div>
+            <Card className="glass-card mx-auto max-w-3xl">
+              <CardContent className="p-8 text-center">
+                <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-full gradient-bg">
+                  <span className="text-2xl font-bold text-primary-foreground">BS</span>
+                </div>
+                <h3 className="text-2xl font-display font-bold">Chike Eluem</h3>
+                <p className="mt-1 text-sm font-medium text-primary">Founder and operator, also known as Big Scott</p>
+                <p className="mx-auto mt-4 max-w-xl text-muted-foreground">
+                  CampusHub is being built as a Nigeria-first campus platform with admin verification, regional discovery, student safety, marketplace protection, and real database-backed community activity.
+                </p>
+                <Button className="mt-6" variant="outline" asChild>
+                  <a href="mailto:campushub.connect@gmail.com">Contact CampusHub</a>
+                </Button>
+              </CardContent>
+            </Card>
           </div>
         </section>
 

@@ -2,7 +2,6 @@ import { Outlet } from "react-router-dom";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import DashboardSidebar from "@/components/dashboard/DashboardSidebar";
 import { Menu } from "lucide-react";
-import campusHubLogo from "@/assets/campus-hub-logo.png";
 
 const DashboardLayout = () => {
   return (
@@ -15,10 +14,7 @@ const DashboardLayout = () => {
               <Menu className="w-5 h-5" />
             </SidebarTrigger>
             <div className="flex items-center gap-2 ml-3">
-              <img src={campusHubLogo} alt="Campus Hub" className="w-7 h-7 rounded-lg object-cover" />
-              <span className="font-display font-bold">
-                Campus<span className="text-primary">Hub</span>
-              </span>
+              <img src="/CampusHub-logo.png" alt="CampusHub" className="h-8 w-auto max-w-[135px] object-contain" />
             </div>
           </header>
           <div className="flex-1 p-4 md:p-6 lg:p-8 overflow-auto">

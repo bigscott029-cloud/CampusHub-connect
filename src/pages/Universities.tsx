@@ -34,6 +34,7 @@ interface UniversityCardData {
   state?: string | null;
   region?: string | null;
   accent_color?: string | null;
+  aliases?: string[] | null;
   stats: {
     gists: number;
     marketplace: number;
@@ -57,7 +58,7 @@ const Universities = () => {
         { data: hostels, error: hostelsError },
         { data: roommateRequests, error: roommateError },
       ] = await Promise.all([
-        (supabase as any).from("universities").select("id, name, slug, location, logo_url, institution_type, ownership, state, region, accent_color").order("name"),
+        (supabase as any).from("universities").select("id, name, slug, location, logo_url, institution_type, ownership, state, region, accent_color, aliases").order("name"),
         supabase.from("posts").select("id, university_id"),
         supabase.from("marketplace_listings").select("id, university_id"),
         supabase.from("hostel_listings").select("id, university_id"),
@@ -145,7 +146,8 @@ const Universities = () => {
         university.location?.toLowerCase().includes(query) ||
         university.state?.toLowerCase().includes(query) ||
         university.region?.toLowerCase().includes(query) ||
-        university.institution_type?.toLowerCase().includes(query)
+        university.institution_type?.toLowerCase().includes(query) ||
+        university.aliases?.some((alias) => alias.toLowerCase().includes(query))
       );
     });
   }, [searchQuery, universitiesQuery.data?.cards]);
@@ -244,6 +246,11 @@ const Universities = () => {
                           </div>
                           <div>
                             <h3 className="text-lg font-display font-bold leading-tight">{university.name}</h3>
+                            {university.aliases?.[0] && (
+                              <Badge variant="outline" className="mt-1 text-[10px]">
+                                {university.aliases[0]}
+                              </Badge>
+                            )}
                             <div className="mt-1 flex items-center gap-1 text-sm text-muted-foreground">
                               <MapPin className="h-3 w-3" />
                               {university.location || "Campus location pending"}

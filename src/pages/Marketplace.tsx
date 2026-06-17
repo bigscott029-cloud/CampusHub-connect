@@ -52,6 +52,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { getProfileWithUniversity } from "@/lib/campus";
+import { openFlutterwavePayment, type PaymentOpenResult } from "@/lib/payments";
 import { formatCurrency, formatRelativeTime } from "@/lib/utils";
 
 const categories = [
@@ -132,6 +133,7 @@ const Marketplace = () => {
   const [filterCondition, setFilterCondition] = useState("all");
   const [sellOpen, setSellOpen] = useState(false);
   const [sellSubmitted, setSellSubmitted] = useState(false);
+  const [sellPayment, setSellPayment] = useState<PaymentOpenResult | null>(null);
   const [sellForm, setSellForm] = useState({
     title: "",
     description: "",
@@ -148,6 +150,7 @@ const Marketplace = () => {
   const [requestOpen, setRequestOpen] = useState(false);
   const [requestForm, setRequestForm] = useState({ title: "", budget: "", details: "" });
   const [agentOpen, setAgentOpen] = useState(false);
+  const [agentPayment, setAgentPayment] = useState<PaymentOpenResult | null>(null);
   const [agentForm, setAgentForm] = useState({ legalName: "", phone: "", businessName: "" });
   const [activeTab, setActiveTab] = useState("browse");
   const sellImageRef = useRef<HTMLInputElement>(null);
@@ -319,8 +322,28 @@ const Marketplace = () => {
         reference_type: "marketplace_listing",
         reference_id: listing.id,
       });
+
+      return {
+        listingId: listing.id as string,
+        listingPlan: sellForm.listingPlan,
+        platformFeeAmount,
+        sellerName: (profile as any)?.display_name as string | null | undefined,
+      };
     },
-    onSuccess: () => {
+    onSuccess: ({ listingId, listingPlan, platformFeeAmount, sellerName }) => {
+      if (listingPlan === "upfront_fee" && platformFeeAmount > 0) {
+        const payment = openFlutterwavePayment({
+          amount: platformFeeAmount,
+          purpose: "marketplace_upfront_fee",
+          referenceId: listingId,
+          customerEmail: user?.email,
+          customerName: sellerName,
+        });
+        setSellPayment(payment);
+      } else {
+        setSellPayment(null);
+      }
+
       setSellSubmitted(true);
       setSellForm({ title: "", description: "", price: "", condition: "", category: "", location: "", phone: "", isUrgent: false, listingPlan: "commission", targetScope: "local" });
       setSellFiles([]);
@@ -367,10 +390,23 @@ const Marketplace = () => {
         reference_type: "agent_verification",
         reference_id: request.id,
       });
+
+      return {
+        requestId: request.id as string,
+        legalName: agentForm.legalName.trim(),
+      };
     },
-    onSuccess: () => {
+    onSuccess: ({ requestId, legalName }) => {
+      const payment = openFlutterwavePayment({
+        amount: 20000,
+        purpose: "agent_verification",
+        referenceId: requestId,
+        customerEmail: user?.email,
+        customerName: legalName,
+      });
+
+      setAgentPayment(payment);
       toast.success("Agent verification request submitted.");
-      setAgentOpen(false);
       setAgentForm({ legalName: "", phone: "", businessName: "" });
     },
     onError: (error) => toast.error(error.message),
@@ -569,13 +605,27 @@ const Marketplace = () => {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={sellOpen} onOpenChange={setSellOpen}>
+      <Dialog
+        open={sellOpen}
+        onOpenChange={(open) => {
+          setSellOpen(open);
+          if (open) {
+            setSellSubmitted(false);
+            setSellPayment(null);
+          }
+        }}
+      >
         <DialogContent className="max-h-[85vh] max-w-lg overflow-y-auto">
           <DialogHeader><DialogTitle>{sellSubmitted ? "Listing Submitted!" : "Sell Something"}</DialogTitle></DialogHeader>
           {sellSubmitted ? (
             <div className="space-y-4 py-6 text-center">
               <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-success/10"><ShoppingBag className="h-8 w-8 text-success" /></div>
               <p className="text-muted-foreground">Your listing is being reviewed for approval by an admin.</p>
+              {sellPayment && (
+                <Button variant="hero" className="w-full" onClick={() => window.open(sellPayment.url, "_blank", "noopener,noreferrer")}>
+                  {sellPayment.label}
+                </Button>
+              )}
               <Button onClick={() => setSellOpen(false)}>Close</Button>
             </div>
           ) : (
@@ -617,7 +667,7 @@ const Marketplace = () => {
               <Card className="border-primary/20 bg-primary/5">
                 <CardContent className="py-3 text-sm text-muted-foreground">
                   {sellForm.listingPlan === "commission" && "You can list for free now. Admin approval is required, and 10% is due from the sale amount when the item sells."}
-                  {sellForm.listingPlan === "upfront_fee" && `A 10% listing fee is due before approval: ${formatCurrency(Number(sellForm.price || 0) * 0.1)}.`}
+                  {sellForm.listingPlan === "upfront_fee" && `A 10% listing fee is due before approval: ${formatCurrency(Number(sellForm.price || 0) * 0.1)}. Flutterwave checkout opens after submission when configured; otherwise CampusHub DM opens as the backup route.`}
                   {sellForm.listingPlan === "verified_agent" && "Verified agents pay a one-time ₦20,000 verification fee, then list with daily and monthly limits after admin approval."}
                 </CardContent>
               </Card>
@@ -662,15 +712,31 @@ const Marketplace = () => {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={agentOpen} onOpenChange={setAgentOpen}>
+      <Dialog
+        open={agentOpen}
+        onOpenChange={(open) => {
+          setAgentOpen(open);
+          if (open) setAgentPayment(null);
+        }}
+      >
         <DialogContent>
           <DialogHeader><DialogTitle>Become a Verified Agent</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <Card className="border-primary/20 bg-primary/5">
               <CardContent className="py-3 text-sm text-muted-foreground">
-                Verified agents pay a one-time {formatCurrency(20000)} fee, then receive a blue verified badge after admin approval. Limits: 10 listings per day and 100 per month.
+                Verified agents pay a one-time {formatCurrency(20000)} fee, then receive a blue verified badge after admin approval. Limits: 10 listings per day and 100 per month. Flutterwave checkout opens after submission when configured; otherwise CampusHub DM opens as the backup route.
               </CardContent>
             </Card>
+            {agentPayment && (
+              <Card className="border-success/30 bg-success/5">
+                <CardContent className="space-y-3 py-3 text-sm text-muted-foreground">
+                  <p>Your agent verification request has been saved. Complete payment {agentPayment.channel === "dm" ? "through CampusHub DM" : "through Flutterwave"} so admin can verify and activate the badge.</p>
+                  <Button variant="hero" className="w-full" onClick={() => window.open(agentPayment.url, "_blank", "noopener,noreferrer")}>
+                    {agentPayment.label}
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
             <div><Label>Legal Name *</Label><Input value={agentForm.legalName} onChange={(event) => setAgentForm({ ...agentForm, legalName: event.target.value })} placeholder="Your full legal name" /></div>
             <div><Label>Phone Number *</Label><Input type="tel" value={agentForm.phone} onChange={(event) => setAgentForm({ ...agentForm, phone: event.target.value })} placeholder="+234..." /></div>
             <div><Label>Business Name</Label><Input value={agentForm.businessName} onChange={(event) => setAgentForm({ ...agentForm, businessName: event.target.value })} placeholder="Optional" /></div>

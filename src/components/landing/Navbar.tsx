@@ -2,7 +2,6 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Menu, X, ChevronDown } from "lucide-react";
-import campusHubLogo from "@/assets/campus-hub-logo.png";
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -11,12 +10,9 @@ const Navbar = () => {
     <nav className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-lg border-b border-border/50">
       <div className="container px-4">
         <div className="flex items-center justify-between h-16">
-          <div className="flex items-center gap-2">
-            <img src={campusHubLogo} alt="Campus Hub" className="w-9 h-9 rounded-xl object-cover" />
-            <span className="font-display font-bold text-xl">
-              Campus<span className="text-primary">Hub</span>
-            </span>
-          </div>
+          <Link to="/" className="flex items-center">
+            <img src="/CampusHub-logo.png" alt="CampusHub" className="h-10 w-auto max-w-[160px] object-contain" />
+          </Link>
 
           <div className="hidden md:flex items-center gap-8">
             <Link to="/features" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">Features</Link>

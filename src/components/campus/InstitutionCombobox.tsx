@@ -25,6 +25,7 @@ export interface InstitutionOption {
   ownership?: string | null;
   state?: string | null;
   region?: string | null;
+  aliases?: string[] | null;
 }
 
 interface InstitutionComboboxProps {
@@ -69,7 +70,10 @@ export function InstitutionCombobox({
         >
           {selectedInstitution ? (
             <span className="flex min-w-0 flex-col">
-              <span className="truncate font-medium">{selectedInstitution.name}</span>
+              <span className="truncate font-medium">
+                {selectedInstitution.name}
+                {selectedInstitution.aliases?.[0] ? ` (${selectedInstitution.aliases[0]})` : ""}
+              </span>
               <span className="flex items-center gap-1 truncate text-xs text-muted-foreground">
                 <MapPin className="h-3 w-3 shrink-0" />
                 {[selectedInstitution.state, selectedInstitution.region].filter(Boolean).join(" • ") || "Nigeria"}
@@ -94,6 +98,7 @@ export function InstitutionCombobox({
                   institution.state,
                   institution.region,
                   institution.ownership,
+                  ...(institution.aliases || []),
                   label,
                 ].filter(Boolean).join(" ");
 
@@ -111,6 +116,11 @@ export function InstitutionCombobox({
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
                         <span className="truncate font-medium">{institution.name}</span>
+                        {institution.aliases?.[0] && (
+                          <Badge variant="outline" className="text-[10px]">
+                            {institution.aliases[0]}
+                          </Badge>
+                        )}
                         <Check className={cn("h-4 w-4", value === institution.id ? "opacity-100" : "opacity-0")} />
                       </div>
                       <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">

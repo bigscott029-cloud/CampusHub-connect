@@ -1,5 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTheme } from "next-themes";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -20,6 +21,8 @@ import {
   Shield,
   Eye,
   Moon,
+  Sun,
+  Monitor,
   LogOut,
   Trash2,
   ArrowLeft,
@@ -27,30 +30,20 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const Settings = () => {
   const { signOut } = useAuth();
   const navigate = useNavigate();
-  const [isDark, setIsDark] = useState(false);
+  const { theme, setTheme } = useTheme();
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
   const [passwords, setPasswords] = useState({ current: "", new: "", confirm: "" });
-
-  useEffect(() => {
-    const dark = document.documentElement.classList.contains("dark");
-    setIsDark(dark);
-  }, []);
-
-  const toggleDarkMode = () => {
-    const newValue = !isDark;
-    setIsDark(newValue);
-    if (newValue) {
-      document.documentElement.classList.add("dark");
-      localStorage.setItem("theme", "dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-      localStorage.setItem("theme", "light");
-    }
-  };
 
   const handleChangePassword = async () => {
     if (passwords.new !== passwords.confirm) {
@@ -130,8 +123,23 @@ const Settings = () => {
         <CardHeader><CardTitle className="text-lg font-display flex items-center gap-2"><Eye className="w-5 h-5" />Appearance</CardTitle></CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center justify-between">
-            <div className="space-y-0.5"><Label className="font-medium text-sm flex items-center gap-2"><Moon className="w-4 h-4" />Dark Mode</Label><p className="text-xs text-muted-foreground">Use dark theme</p></div>
-            <Switch checked={isDark} onCheckedChange={toggleDarkMode} />
+            <div className="space-y-0.5">
+              <Label className="font-medium text-sm flex items-center gap-2">
+                <Moon className="w-4 h-4" />
+                Theme
+              </Label>
+              <p className="text-xs text-muted-foreground">Follow your device setting or choose a fixed theme</p>
+            </div>
+            <Select value={theme || "system"} onValueChange={setTheme}>
+              <SelectTrigger className="w-36">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="system"><span className="flex items-center gap-2"><Monitor className="h-4 w-4" />System</span></SelectItem>
+                <SelectItem value="light"><span className="flex items-center gap-2"><Sun className="h-4 w-4" />Light</span></SelectItem>
+                <SelectItem value="dark"><span className="flex items-center gap-2"><Moon className="h-4 w-4" />Dark</span></SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </CardContent>
       </Card>

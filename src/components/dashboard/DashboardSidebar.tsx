@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import campusHubLogo from "@/assets/campus-hub-logo.png";
 import {
   Sidebar,
   SidebarContent,
@@ -65,13 +64,12 @@ const DashboardSidebar = () => {
     <Sidebar collapsible="icon" className="border-r border-border/50">
       <SidebarHeader className="p-4">
         <div className="flex items-center justify-between">
-          <div className={cn("flex items-center gap-2", isCollapsed && "justify-center")}>
-            <img src={campusHubLogo} alt="Campus Hub" className="w-9 h-9 rounded-xl shrink-0 object-cover" />
-            {!isCollapsed && (
-              <span className="font-display font-bold text-lg">
-                Campus<span className="text-primary">Hub</span>
-              </span>
-            )}
+          <div className={cn("flex items-center", isCollapsed && "justify-center")}>
+            <img
+              src="/CampusHub-logo.png"
+              alt="CampusHub"
+              className={cn("h-10 shrink-0 object-contain", isCollapsed ? "w-9" : "w-auto max-w-[150px]")}
+            />
           </div>
           <Button
             variant="ghost"

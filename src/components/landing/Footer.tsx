@@ -1,6 +1,5 @@
 import { Instagram, Mail, MapPin, MessageCircle, Shield } from "lucide-react";
 import { Link } from "react-router-dom";
-import campusHubLogo from "@/assets/campus-hub-logo.png";
 
 const TikTokIcon = ({ className }: { className?: string }) => (
   <svg viewBox="0 0 24 24" aria-hidden="true" className={className} fill="currentColor">
@@ -19,8 +18,7 @@ const Footer = () => {
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-12 mb-12">
           <div className="lg:col-span-1">
             <div className="flex items-center gap-2 mb-4">
-              <img src={campusHubLogo} alt="Campus Hub" className="w-9 h-9 rounded-xl object-cover" />
-              <span className="font-display font-bold text-xl text-background">CampusHub</span>
+              <img src="/CampusHub-logo.png" alt="CampusHub" className="h-10 w-auto max-w-[165px] object-contain" />
             </div>
             <p className="text-background/70 text-sm mb-6 leading-relaxed">
               Your trusted campus platform. Connecting students across universities with news, communities, and resources.
@@ -54,8 +52,9 @@ const Footer = () => {
             <h4 className="font-display font-bold mb-4">Safety & Legal</h4>
             <ul className="space-y-3">
               <li><Link to="/safety" className="text-background/70 hover:text-background transition-colors text-sm flex items-center gap-2"><Shield className="w-4 h-4" /> Community Guidelines</Link></li>
-              <li><a href={`${contactHref}?subject=Privacy%20Policy`} className="text-background/70 hover:text-background transition-colors text-sm">Privacy Policy</a></li>
-              <li><a href={`${contactHref}?subject=Terms%20of%20Service`} className="text-background/70 hover:text-background transition-colors text-sm">Terms of Service</a></li>
+              <li><Link to="/privacy" className="text-background/70 hover:text-background transition-colors text-sm">Privacy Policy</Link></li>
+              <li><Link to="/terms" className="text-background/70 hover:text-background transition-colors text-sm">Terms of Service</Link></li>
+              <li><Link to="/marketplace-rules" className="text-background/70 hover:text-background transition-colors text-sm">Marketplace Rules</Link></li>
               <li><a href={`${contactHref}?subject=Report%20Abuse`} className="text-background/70 hover:text-background transition-colors text-sm">Report Abuse</a></li>
             </ul>
           </div>

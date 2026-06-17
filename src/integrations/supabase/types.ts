@@ -1038,6 +1038,8 @@ export type Database = {
           department: string | null
           display_name: string
           experience_points: number | null
+          home_region: string | null
+          home_state: string | null
           id: string
           last_active_at: string | null
           level: string | null
@@ -1055,6 +1057,7 @@ export type Database = {
           university_id: string | null
           updated_at: string
           user_id: string
+          user_type: string
           verification_document_url: string | null
           verification_notes: string | null
           verified_at: string | null
@@ -1074,6 +1077,8 @@ export type Database = {
           department?: string | null
           display_name: string
           experience_points?: number | null
+          home_region?: string | null
+          home_state?: string | null
           id?: string
           last_active_at?: string | null
           level?: string | null
@@ -1091,6 +1096,7 @@ export type Database = {
           university_id?: string | null
           updated_at?: string
           user_id: string
+          user_type?: string
           verification_document_url?: string | null
           verification_notes?: string | null
           verified_at?: string | null
@@ -1110,6 +1116,8 @@ export type Database = {
           department?: string | null
           display_name?: string
           experience_points?: number | null
+          home_region?: string | null
+          home_state?: string | null
           id?: string
           last_active_at?: string | null
           level?: string | null
@@ -1127,6 +1135,7 @@ export type Database = {
           university_id?: string | null
           updated_at?: string
           user_id?: string
+          user_type?: string
           verification_document_url?: string | null
           verification_notes?: string | null
           verified_at?: string | null
@@ -1281,6 +1290,7 @@ export type Database = {
       universities: {
         Row: {
           accent_color: string
+          aliases: string[]
           campus_motto: string | null
           city: string | null
           community_prompt: string | null
@@ -1301,6 +1311,7 @@ export type Database = {
         }
         Insert: {
           accent_color?: string
+          aliases?: string[]
           campus_motto?: string | null
           city?: string | null
           community_prompt?: string | null
@@ -1321,6 +1332,7 @@ export type Database = {
         }
         Update: {
           accent_color?: string
+          aliases?: string[]
           campus_motto?: string | null
           city?: string | null
           community_prompt?: string | null
@@ -1432,6 +1444,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      generate_institution_alias: {
+        Args: { institution_name: string }
+        Returns: string
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]

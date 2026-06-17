@@ -3,6 +3,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { ThemeProvider } from "next-themes";
 import { AuthProvider } from "@/hooks/useAuth";
 import { AdminProvider } from "@/hooks/useAdminAuth";
 import ProtectedRoute from "@/components/ProtectedRoute";
@@ -21,6 +22,9 @@ import Universities from "./pages/Universities";
 import UniversityDetail from "./pages/UniversityDetail";
 import About from "./pages/About";
 import Safety from "./pages/Safety";
+import PrivacyPolicy from "./pages/PrivacyPolicy";
+import TermsOfService from "./pages/TermsOfService";
+import MarketplaceRules from "./pages/MarketplaceRules";
 
 // Protected pages
 import Dashboard from "./pages/Dashboard";
@@ -46,12 +50,13 @@ const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <AuthProvider>
-      <AdminProvider>
-        <TooltipProvider>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter>
+    <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+      <AuthProvider>
+        <AdminProvider>
+          <TooltipProvider>
+            <Toaster />
+            <Sonner />
+            <BrowserRouter>
           <Routes>
             {/* Public Routes */}
             <Route path="/" element={<Index />} />
@@ -63,6 +68,9 @@ const App = () => (
             <Route path="/university/:slug" element={<UniversityDetail />} />
             <Route path="/about" element={<About />} />
             <Route path="/safety" element={<Safety />} />
+            <Route path="/privacy" element={<PrivacyPolicy />} />
+            <Route path="/terms" element={<TermsOfService />} />
+            <Route path="/marketplace-rules" element={<MarketplaceRules />} />
 
             {/* Protected Routes with Dashboard Layout */}
             <Route
@@ -105,10 +113,11 @@ const App = () => (
             {/* Catch-all */}
             <Route path="*" element={<NotFound />} />
           </Routes>
-        </BrowserRouter>
-        </TooltipProvider>
-      </AdminProvider>
-    </AuthProvider>
+            </BrowserRouter>
+          </TooltipProvider>
+        </AdminProvider>
+      </AuthProvider>
+    </ThemeProvider>
   </QueryClientProvider>
 );
 
