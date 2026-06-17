@@ -6,6 +6,15 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -28,11 +37,41 @@ import {
   ArrowUpCircle,
   Loader2,
   LogOut,
+  Megaphone,
+  PauseCircle,
+  Pencil,
+  PlayCircle,
+  Plus,
+  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAdminAuth } from "@/hooks/useAdminAuth";
 import { useNavigate } from "react-router-dom";
+import { nigeriaStates } from "@/lib/nigeria";
+
+const emptyAdForm = {
+  title: "",
+  description: "",
+  sponsor_name: "",
+  creative_url: "",
+  cta_text: "Learn more",
+  cta_url: "",
+  target_scope: "general",
+  geo_region: "",
+  starts_at: "",
+  ends_at: "",
+  status: "active",
+  payment_status: "paid",
+  tier_price: "0",
+  reward_points: "0",
+  priority: "0",
+  max_impressions_per_user: "3",
+  cooldown_hours: "24",
+  admin_notes: "",
+};
+
+const regionOptions = Array.from(new Set(nigeriaStates.map((state) => state.region)));
 
 const AdminPanel = () => {
   const [selectedRequest, setSelectedRequest] = useState<any>(null);
@@ -45,6 +84,10 @@ const AdminPanel = () => {
   const [anonymousReports, setAnonymousReports] = useState<any[]>([]);
   const [studentVerificationRequests, setStudentVerificationRequests] = useState<any[]>([]);
   const [agentRequests, setAgentRequests] = useState<any[]>([]);
+  const [ads, setAds] = useState<any[]>([]);
+  const [adDialogOpen, setAdDialogOpen] = useState(false);
+  const [editingAd, setEditingAd] = useState<any>(null);
+  const [adForm, setAdForm] = useState(emptyAdForm);
   const [loading, setLoading] = useState(true);
   const { adminLogout, adminUsername } = useAdminAuth();
   const navigate = useNavigate();
@@ -109,12 +152,20 @@ const AdminPanel = () => {
 
       if (agentError) throw agentError;
 
+      const { data: adCampaigns, error: adsError } = await (supabase as any)
+        .from("ads")
+        .select("id, title, description, creative_url, cta_text, cta_url, sponsor_name, placement_type, target_scope, status, payment_status, tier_price, geo_region, starts_at, ends_at, impressions_count, clicks_count, conversions_count, reward_points, priority, max_impressions_per_user, cooldown_hours, admin_notes, created_at")
+        .order("created_at", { ascending: false });
+
+      if (adsError) throw adsError;
+
       setHostelRequests(hostels || []);
       setRoommateRequests(roommates || []);
       setMarketplaceRequests(marketplace || []);
       setAnonymousReports(reports || []);
       setStudentVerificationRequests(studentVerifications || []);
       setAgentRequests(agents || []);
+      setAds(adCampaigns || []);
     } catch (error) {
       console.error("Error fetching requests:", error);
       toast.error("Failed to load admin requests");
@@ -394,6 +445,107 @@ const AdminPanel = () => {
     }
   };
 
+  const openAdDialog = (ad?: any) => {
+    setEditingAd(ad || null);
+    setAdForm(ad ? {
+      title: ad.title || "",
+      description: ad.description || "",
+      sponsor_name: ad.sponsor_name || "",
+      creative_url: ad.creative_url || "",
+      cta_text: ad.cta_text || "Learn more",
+      cta_url: ad.cta_url || "",
+      target_scope: ad.target_scope || (ad.placement_type === "geo" ? "region" : "general"),
+      geo_region: ad.geo_region || "",
+      starts_at: ad.starts_at ? new Date(ad.starts_at).toISOString().slice(0, 16) : "",
+      ends_at: ad.ends_at ? new Date(ad.ends_at).toISOString().slice(0, 16) : "",
+      status: ad.status || "active",
+      payment_status: ad.payment_status || "paid",
+      tier_price: String(ad.tier_price ?? 0),
+      reward_points: String(ad.reward_points ?? 0),
+      priority: String(ad.priority ?? 0),
+      max_impressions_per_user: String(ad.max_impressions_per_user ?? 3),
+      cooldown_hours: String(ad.cooldown_hours ?? 24),
+      admin_notes: ad.admin_notes || "",
+    } : emptyAdForm);
+    setAdDialogOpen(true);
+  };
+
+  const saveAd = async () => {
+    if (!adForm.title.trim() || !adForm.description.trim() || !adForm.sponsor_name.trim() || !adForm.cta_url.trim()) {
+      toast.error("Please add title, description, sponsor, and CTA URL.");
+      return;
+    }
+
+    try {
+      const { data: authData } = await supabase.auth.getUser();
+      const payload = {
+        owner_id: authData.user?.id ?? null,
+        title: adForm.title.trim(),
+        description: adForm.description.trim(),
+        sponsor_name: adForm.sponsor_name.trim(),
+        creative_url: adForm.creative_url.trim() || null,
+        cta_text: adForm.cta_text.trim() || "Learn more",
+        cta_url: adForm.cta_url.trim(),
+        placement_type: adForm.target_scope === "region" ? "geo" : "global",
+        target_scope: adForm.target_scope,
+        geo_region: adForm.target_scope === "region" ? adForm.geo_region || null : null,
+        starts_at: adForm.starts_at ? new Date(adForm.starts_at).toISOString() : new Date().toISOString(),
+        ends_at: adForm.ends_at ? new Date(adForm.ends_at).toISOString() : null,
+        status: adForm.status,
+        payment_status: adForm.payment_status,
+        tier_price: Number(adForm.tier_price || 0),
+        reward_points: Number(adForm.reward_points || 0),
+        priority: Number(adForm.priority || 0),
+        max_impressions_per_user: Number(adForm.max_impressions_per_user || 3),
+        cooldown_hours: Number(adForm.cooldown_hours || 24),
+        admin_notes: adForm.admin_notes.trim() || null,
+      };
+
+      const query = editingAd
+        ? (supabase as any).from("ads").update(payload).eq("id", editingAd.id)
+        : (supabase as any).from("ads").insert(payload);
+
+      const { error } = await query;
+      if (error) throw error;
+
+      toast.success(editingAd ? "Ad campaign updated." : "Ad campaign created.");
+      setAdDialogOpen(false);
+      setEditingAd(null);
+      setAdForm(emptyAdForm);
+      await fetchRequests();
+    } catch (error) {
+      console.error("Error saving ad:", error);
+      toast.error("Failed to save ad campaign. Confirm admin auth and database migration are active.");
+    }
+  };
+
+  const toggleAdStatus = async (ad: any) => {
+    try {
+      const nextStatus = ad.status === "active" ? "paused" : "active";
+      const { error } = await (supabase as any).from("ads").update({ status: nextStatus }).eq("id", ad.id);
+      if (error) throw error;
+      toast.success(`Ad ${nextStatus}.`);
+      await fetchRequests();
+    } catch (error) {
+      console.error("Error updating ad status:", error);
+      toast.error("Failed to update ad.");
+    }
+  };
+
+  const deleteAd = async (ad: any) => {
+    if (!window.confirm(`Delete ad campaign "${ad.title}"?`)) return;
+
+    try {
+      const { error } = await (supabase as any).from("ads").delete().eq("id", ad.id);
+      if (error) throw error;
+      toast.success("Ad campaign deleted.");
+      await fetchRequests();
+    } catch (error) {
+      console.error("Error deleting ad:", error);
+      toast.error("Failed to delete ad.");
+    }
+  };
+
   const renderRequestCard = (request: any, type: "hostel" | "roommate" | "marketplace") => {
     const title = request.title || "Untitled";
     const createdAt = request.created_at ? new Date(request.created_at).toLocaleDateString() : "Unknown";
@@ -569,6 +721,10 @@ const AdminPanel = () => {
             <CreditCard className="w-4 h-4" />
             Agents ({agentRequests.length})
           </TabsTrigger>
+          <TabsTrigger value="ads" className="gap-1">
+            <Megaphone className="w-4 h-4" />
+            Ads ({ads.length})
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="hostel" className="space-y-4">
@@ -711,7 +867,202 @@ const AdminPanel = () => {
             ))
           )}
         </TabsContent>
+
+        <TabsContent value="ads" className="space-y-4">
+          <Card className="glass-card">
+            <CardContent className="flex flex-col gap-4 pt-6 md:flex-row md:items-center md:justify-between">
+              <div>
+                <h2 className="text-lg font-semibold">Sponsored Campaigns</h2>
+                <p className="text-sm text-muted-foreground">Create ads for web and off-platform advertisers, then schedule and target them.</p>
+              </div>
+              <Button onClick={() => openAdDialog()}>
+                <Plus className="mr-2 h-4 w-4" />
+                New Ad
+              </Button>
+            </CardContent>
+          </Card>
+
+          {ads.length === 0 ? (
+            <Card className="glass-card">
+              <CardContent className="py-12 text-center">
+                <Megaphone className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+                <p className="text-muted-foreground">No ad campaigns yet</p>
+              </CardContent>
+            </Card>
+          ) : (
+            ads.map((ad) => (
+              <Card key={ad.id} className="glass-card">
+                <CardContent className="pt-6">
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div className="flex gap-4">
+                      <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-primary/10">
+                        {ad.creative_url ? (
+                          <img src={ad.creative_url} alt={ad.title} className="h-full w-full object-cover" />
+                        ) : (
+                          <Megaphone className="h-7 w-7 text-primary" />
+                        )}
+                      </div>
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h3 className="font-semibold">{ad.title}</h3>
+                          <Badge variant={ad.status === "active" ? "default" : "secondary"}>{ad.status}</Badge>
+                          <Badge variant={ad.payment_status === "paid" ? "secondary" : "destructive"}>{ad.payment_status}</Badge>
+                        </div>
+                        <p className="text-sm text-muted-foreground">Sponsor: {ad.sponsor_name}</p>
+                        <p className="mt-1 max-w-2xl text-sm">{ad.description}</p>
+                        <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                          <Badge variant="outline">{ad.target_scope || ad.placement_type}</Badge>
+                          {ad.geo_region && <Badge variant="outline">{ad.geo_region}</Badge>}
+                          <Badge variant="secondary">{Number(ad.impressions_count ?? 0).toLocaleString()} impressions</Badge>
+                          <Badge variant="secondary">{Number(ad.clicks_count ?? 0).toLocaleString()} clicks</Badge>
+                          <Badge variant="outline">Max {ad.max_impressions_per_user ?? 3}/user</Badge>
+                          <Badge variant="outline">{ad.cooldown_hours ?? 24}h cooldown</Badge>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-2 lg:justify-end">
+                      <Button variant="outline" size="sm" onClick={() => toggleAdStatus(ad)}>
+                        {ad.status === "active" ? <PauseCircle className="mr-1 h-4 w-4" /> : <PlayCircle className="mr-1 h-4 w-4" />}
+                        {ad.status === "active" ? "Pause" : "Activate"}
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => openAdDialog(ad)}>
+                        <Pencil className="mr-1 h-4 w-4" />
+                        Edit
+                      </Button>
+                      <Button variant="destructive" size="sm" onClick={() => deleteAd(ad)}>
+                        <Trash2 className="mr-1 h-4 w-4" />
+                        Delete
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))
+          )}
+        </TabsContent>
       </Tabs>
+
+      <Dialog open={adDialogOpen} onOpenChange={setAdDialogOpen}>
+        <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{editingAd ? "Edit Ad Campaign" : "Create Ad Campaign"}</DialogTitle>
+            <DialogDescription>
+              Add products for advertisers, set the campaign window, and choose whether the ad is general or region-targeted.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label>Title</Label>
+              <Input value={adForm.title} onChange={(event) => setAdForm({ ...adForm, title: event.target.value })} placeholder="Ad title" />
+            </div>
+            <div className="space-y-2">
+              <Label>Sponsor</Label>
+              <Input value={adForm.sponsor_name} onChange={(event) => setAdForm({ ...adForm, sponsor_name: event.target.value })} placeholder="Brand or seller name" />
+            </div>
+            <div className="space-y-2 md:col-span-2">
+              <Label>Description</Label>
+              <Textarea value={adForm.description} onChange={(event) => setAdForm({ ...adForm, description: event.target.value })} rows={3} placeholder="Short ad copy" />
+            </div>
+            <div className="space-y-2">
+              <Label>Creative URL</Label>
+              <Input value={adForm.creative_url} onChange={(event) => setAdForm({ ...adForm, creative_url: event.target.value })} placeholder="https://..." />
+            </div>
+            <div className="space-y-2">
+              <Label>CTA URL</Label>
+              <Input value={adForm.cta_url} onChange={(event) => setAdForm({ ...adForm, cta_url: event.target.value })} placeholder="https://..." />
+            </div>
+            <div className="space-y-2">
+              <Label>CTA Text</Label>
+              <Input value={adForm.cta_text} onChange={(event) => setAdForm({ ...adForm, cta_text: event.target.value })} placeholder="Learn more" />
+            </div>
+            <div className="space-y-2">
+              <Label>Target</Label>
+              <Select value={adForm.target_scope} onValueChange={(value) => setAdForm({ ...adForm, target_scope: value, geo_region: value === "general" ? "" : adForm.geo_region })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="general">General</SelectItem>
+                  <SelectItem value="region">Region</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {adForm.target_scope === "region" && (
+              <div className="space-y-2">
+                <Label>Region</Label>
+                <Select value={adForm.geo_region} onValueChange={(value) => setAdForm({ ...adForm, geo_region: value })}>
+                  <SelectTrigger><SelectValue placeholder="Select region" /></SelectTrigger>
+                  <SelectContent>
+                    {regionOptions.map((region) => (
+                      <SelectItem key={region} value={region}>{region}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            <div className="space-y-2">
+              <Label>Start</Label>
+              <Input type="datetime-local" value={adForm.starts_at} onChange={(event) => setAdForm({ ...adForm, starts_at: event.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label>End</Label>
+              <Input type="datetime-local" value={adForm.ends_at} onChange={(event) => setAdForm({ ...adForm, ends_at: event.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label>Status</Label>
+              <Select value={adForm.status} onValueChange={(value) => setAdForm({ ...adForm, status: value })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="paused">Paused</SelectItem>
+                  <SelectItem value="draft">Draft</SelectItem>
+                  <SelectItem value="expired">Expired</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Payment</Label>
+              <Select value={adForm.payment_status} onValueChange={(value) => setAdForm({ ...adForm, payment_status: value })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="paid">Paid</SelectItem>
+                  <SelectItem value="pending">Pending</SelectItem>
+                  <SelectItem value="unpaid">Unpaid</SelectItem>
+                  <SelectItem value="refunded">Refunded</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Campaign Price</Label>
+              <Input type="number" value={adForm.tier_price} onChange={(event) => setAdForm({ ...adForm, tier_price: event.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label>Reward Points</Label>
+              <Input type="number" value={adForm.reward_points} onChange={(event) => setAdForm({ ...adForm, reward_points: event.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label>Priority</Label>
+              <Input type="number" value={adForm.priority} onChange={(event) => setAdForm({ ...adForm, priority: event.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label>Max Views Per User</Label>
+              <Input type="number" min="1" value={adForm.max_impressions_per_user} onChange={(event) => setAdForm({ ...adForm, max_impressions_per_user: event.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label>Cooldown Hours</Label>
+              <Input type="number" min="1" value={adForm.cooldown_hours} onChange={(event) => setAdForm({ ...adForm, cooldown_hours: event.target.value })} />
+            </div>
+            <div className="space-y-2 md:col-span-2">
+              <Label>Admin Notes</Label>
+              <Textarea value={adForm.admin_notes} onChange={(event) => setAdForm({ ...adForm, admin_notes: event.target.value })} rows={2} placeholder="Payment source, client contact, campaign notes..." />
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setAdDialogOpen(false)}>Cancel</Button>
+            <Button onClick={saveAd}>{editingAd ? "Save Changes" : "Create Ad"}</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Action Dialog */}
       <Dialog open={actionDialogOpen} onOpenChange={setActionDialogOpen}>

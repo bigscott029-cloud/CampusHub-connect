@@ -146,8 +146,10 @@ export type Database = {
       ads: {
         Row: {
           ab_variant: string
+          admin_notes: string | null
           clicks_count: number
           conversions_count: number
+          cooldown_hours: number
           created_at: string
           creative_url: string | null
           cta_text: string
@@ -157,9 +159,11 @@ export type Database = {
           geo_region: string | null
           id: string
           impressions_count: number
-          owner_id: string
+          max_impressions_per_user: number
+          owner_id: string | null
           payment_status: string
           placement_type: string
+          priority: number
           predicted_score: number
           reward_points: number
           sponsor_name: string
@@ -167,6 +171,7 @@ export type Database = {
           status: string
           target_departments: string[]
           target_interests: string[]
+          target_scope: string
           target_university_id: string | null
           tier_price: number
           title: string
@@ -174,8 +179,10 @@ export type Database = {
         }
         Insert: {
           ab_variant?: string
+          admin_notes?: string | null
           clicks_count?: number
           conversions_count?: number
+          cooldown_hours?: number
           created_at?: string
           creative_url?: string | null
           cta_text?: string
@@ -185,9 +192,11 @@ export type Database = {
           geo_region?: string | null
           id?: string
           impressions_count?: number
-          owner_id: string
+          max_impressions_per_user?: number
+          owner_id?: string | null
           payment_status?: string
           placement_type: string
+          priority?: number
           predicted_score?: number
           reward_points?: number
           sponsor_name: string
@@ -195,6 +204,7 @@ export type Database = {
           status?: string
           target_departments?: string[]
           target_interests?: string[]
+          target_scope?: string
           target_university_id?: string | null
           tier_price?: number
           title: string
@@ -202,8 +212,10 @@ export type Database = {
         }
         Update: {
           ab_variant?: string
+          admin_notes?: string | null
           clicks_count?: number
           conversions_count?: number
+          cooldown_hours?: number
           created_at?: string
           creative_url?: string | null
           cta_text?: string
@@ -213,9 +225,11 @@ export type Database = {
           geo_region?: string | null
           id?: string
           impressions_count?: number
-          owner_id?: string
+          max_impressions_per_user?: number
+          owner_id?: string | null
           payment_status?: string
           placement_type?: string
+          priority?: number
           predicted_score?: number
           reward_points?: number
           sponsor_name?: string
@@ -223,6 +237,7 @@ export type Database = {
           status?: string
           target_departments?: string[]
           target_interests?: string[]
+          target_scope?: string
           target_university_id?: string | null
           tier_price?: number
           title?: string

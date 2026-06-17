@@ -20,6 +20,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
+import { getInstitutionLogoUrl } from "@/lib/institutionLogo";
 import { formatCompactNumber, formatCurrency, formatRelativeTime } from "@/lib/utils";
 
 const UniversityDetail = () => {
@@ -130,6 +131,7 @@ const UniversityDetail = () => {
   const data = universityQuery.data;
   const accentColor = data?.university?.accent_color || "#2563eb";
   const institutionType = data?.university?.institution_type?.replace(/_/g, " ") || "institution";
+  const logoUrl = data?.university ? getInstitutionLogoUrl(data.university) : null;
 
   const quickStats = useMemo(() => {
     if (!data) return [];
@@ -181,8 +183,8 @@ const UniversityDetail = () => {
               <div className="container relative px-4 pt-8">
                 <div className="flex flex-col gap-6 md:flex-row md:items-start">
                   <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-3xl" style={{ backgroundColor: `${accentColor}20` }}>
-                    {data.university.logo_url ? (
-                      <img src={data.university.logo_url} alt={data.university.name} className="h-full w-full object-cover" />
+                    {logoUrl ? (
+                      <img src={logoUrl} alt={data.university.name} className="h-full w-full object-contain p-2" />
                     ) : (
                       <span className="text-4xl font-bold" style={{ color: accentColor }}>{data.university.name.charAt(0)}</span>
                     )}

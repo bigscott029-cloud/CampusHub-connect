@@ -21,6 +21,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
+import { getInstitutionLogoUrl } from "@/lib/institutionLogo";
 import { formatCompactNumber } from "@/lib/utils";
 
 interface UniversityCardData {
@@ -29,6 +30,7 @@ interface UniversityCardData {
   slug: string;
   location: string | null;
   logo_url: string | null;
+  website_url?: string | null;
   institution_type?: string | null;
   ownership?: string | null;
   state?: string | null;
@@ -58,7 +60,7 @@ const Universities = () => {
         { data: hostels, error: hostelsError },
         { data: roommateRequests, error: roommateError },
       ] = await Promise.all([
-        (supabase as any).from("universities").select("id, name, slug, location, logo_url, institution_type, ownership, state, region, accent_color, aliases").order("name"),
+        (supabase as any).from("universities").select("id, name, slug, location, logo_url, website_url, institution_type, ownership, state, region, accent_color, aliases").order("name"),
         supabase.from("posts").select("id, university_id"),
         supabase.from("marketplace_listings").select("id, university_id"),
         supabase.from("hostel_listings").select("id, university_id"),
@@ -231,15 +233,18 @@ const Universities = () => {
               </Card>
             ) : (
               <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                {filteredUniversities.map((university) => (
+                {filteredUniversities.map((university) => {
+                  const logoUrl = getInstitutionLogoUrl(university);
+
+                  return (
                   <Card key={university.id} className="glass-card group overflow-hidden hover-lift">
                     <div className="h-2" style={{ backgroundColor: university.accent_color || "hsl(var(--primary))" }} />
                     <CardHeader className="pb-3">
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex items-center gap-3">
                           <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-2xl bg-primary/10">
-                            {university.logo_url ? (
-                              <img src={university.logo_url} alt={university.name} className="h-full w-full object-cover" />
+                            {logoUrl ? (
+                              <img src={logoUrl} alt={university.name} className="h-full w-full object-contain p-1" />
                             ) : (
                               <span className="text-xl font-bold text-primary">{university.name.charAt(0)}</span>
                             )}
@@ -316,7 +321,8 @@ const Universities = () => {
                       </div>
                     </CardContent>
                   </Card>
-                ))}
+                  );
+                })}
               </div>
             )}
 

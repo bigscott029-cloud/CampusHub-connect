@@ -53,6 +53,15 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
       }
 
       if (data?.success) {
+        const { error: authError } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+
+        if (authError) {
+          console.warn("Admin verified, but Supabase Auth session was not created:", authError.message);
+        }
+
         // Store session in localStorage
         localStorage.setItem(
           ADMIN_SESSION_KEY,
@@ -75,6 +84,7 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
 
   const adminLogout = () => {
     localStorage.removeItem(ADMIN_SESSION_KEY);
+    supabase.auth.signOut();
     setAdminUsername(null);
     setIsAdminLoggedIn(false);
   };

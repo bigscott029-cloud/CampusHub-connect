@@ -19,9 +19,13 @@ interface Ad {
   cta_url: string;
   sponsor_name: string;
   placement_type: "global" | "targeted" | "geo";
+  target_scope?: "general" | "region" | "institution" | null;
   tier_price: number;
   reward_points: number;
   predicted_score: number;
+  priority?: number | null;
+  max_impressions_per_user?: number | null;
+  cooldown_hours?: number | null;
   target_university_id?: string | null;
   target_departments?: string[] | null;
   geo_region?: string | null;
@@ -38,7 +42,7 @@ const AdPopup = () => {
     queryFn: async () => {
       const { data } = await (supabase as any)
         .from("profiles")
-        .select("university_id, department")
+        .select("university_id, department, home_region")
         .eq("user_id", user?.id)
         .maybeSingle();
       return data;
@@ -50,7 +54,7 @@ const AdPopup = () => {
     queryFn: async (): Promise<Ad[]> => {
       const { data, error } = await (supabase as any)
         .from("ads")
-        .select("id, title, description, creative_url, cta_text, cta_url, sponsor_name, placement_type, tier_price, reward_points, predicted_score, target_university_id, target_departments, geo_region")
+        .select("id, title, description, creative_url, cta_text, cta_url, sponsor_name, placement_type, target_scope, tier_price, reward_points, predicted_score, priority, max_impressions_per_user, cooldown_hours, target_university_id, target_departments, geo_region")
         .eq("status", "active")
         .eq("payment_status", "paid")
         .lte("starts_at", new Date().toISOString())
@@ -66,17 +70,37 @@ const AdPopup = () => {
     const ads = adsQuery.data ?? [];
     if (!ads.length) return null;
 
-    const scoredAds = ads.map((ad) => {
+    const viewerKey = user?.id || "guest";
+    const now = Date.now();
+    const eligibleAds = ads.filter((ad) => {
+      const frequencyKey = `campushub_ad_frequency:${viewerKey}:${ad.id}`;
+      const raw = localStorage.getItem(frequencyKey);
+      let frequency: { shownCount?: number; lastShownAt?: number } = {};
+      try {
+        frequency = raw ? JSON.parse(raw) : {};
+      } catch {
+        localStorage.removeItem(frequencyKey);
+      }
+      const maxImpressions = ad.max_impressions_per_user ?? 3;
+      const cooldownMs = (ad.cooldown_hours ?? 24) * 60 * 60 * 1000;
+
+      if ((frequency.shownCount ?? 0) >= maxImpressions) return false;
+      if (frequency.lastShownAt && now - frequency.lastShownAt < cooldownMs) return false;
+      return true;
+    });
+
+    const scoredAds = eligibleAds.map((ad) => {
       const universityMatch = ad.target_university_id && ad.target_university_id === profile?.university_id ? 40 : 0;
       const departmentMatch = ad.target_departments?.includes(profile?.department ?? "") ? 25 : 0;
       const globalBoost = ad.placement_type === "global" ? 12 : 0;
-      const geoBoost = ad.placement_type === "geo" && ad.geo_region ? 10 : 0;
+      const geoBoost = ad.placement_type === "geo" && ad.geo_region && ad.geo_region === profile?.home_region ? 35 : 0;
       const priceBoost = Math.min(Number(ad.tier_price ?? 0) / 100, 30);
       const predictiveBoost = Math.min(Number(ad.predicted_score ?? 0), 25);
+      const priorityBoost = Number(ad.priority ?? 0) * 2;
 
       return {
         ad,
-        score: universityMatch + departmentMatch + globalBoost + geoBoost + priceBoost + predictiveBoost + Math.random() * 6,
+        score: universityMatch + departmentMatch + globalBoost + geoBoost + priceBoost + predictiveBoost + priorityBoost + Math.random() * 6,
       };
     });
 
@@ -89,6 +113,20 @@ const AdPopup = () => {
     const timer = setTimeout(async () => {
       setIsVisible(true);
       setHasBeenShown(true);
+      const viewerKey = user?.id || "guest";
+      const frequencyKey = `campushub_ad_frequency:${viewerKey}:${currentAd.id}`;
+      const raw = localStorage.getItem(frequencyKey);
+      let frequency: { shownCount?: number } = {};
+      try {
+        frequency = raw ? JSON.parse(raw) : {};
+      } catch {
+        localStorage.removeItem(frequencyKey);
+      }
+      localStorage.setItem(frequencyKey, JSON.stringify({
+        shownCount: (frequency.shownCount ?? 0) + 1,
+        lastShownAt: Date.now(),
+      }));
+
       await (supabase as any).from("ad_events").insert({
         ad_id: currentAd.id,
         user_id: user?.id ?? null,
