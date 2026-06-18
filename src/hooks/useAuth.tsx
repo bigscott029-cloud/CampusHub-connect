@@ -19,6 +19,8 @@ interface AuthContextType {
     },
   ) => Promise<{ error: Error | null }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
+  resetPasswordForEmail: (email: string) => Promise<{ error: Error | null }>;
+  updatePassword: (password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
 }
 
@@ -61,11 +63,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       username?: string;
     },
   ) => {
+    const normalizedEmail = email.trim().toLowerCase();
+
     const { data, error } = await supabase.auth.signUp({
-      email,
+      email: normalizedEmail,
       password,
       options: {
-        emailRedirectTo: `${window.location.origin}/login?verified=1`,
+        emailRedirectTo: `${window.location.origin}/auth/callback?next=/login&verified=1`,
         data: {
           display_name: displayName,
           username: options?.username,
@@ -95,9 +99,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const signIn = async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({
-      email,
+      email: email.trim().toLowerCase(),
       password,
     });
+    return { error };
+  };
+
+  const resetPasswordForEmail = async (email: string) => {
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
+      redirectTo: `${window.location.origin}/auth/callback?next=/reset-password&type=recovery`,
+    });
+
+    return { error };
+  };
+
+  const updatePassword = async (password: string) => {
+    const { error } = await supabase.auth.updateUser({ password });
     return { error };
   };
 
@@ -106,7 +123,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, loading, signUp, signIn, signOut }}>
+    <AuthContext.Provider value={{ user, session, loading, signUp, signIn, resetPasswordForEmail, updatePassword, signOut }}>
       {children}
     </AuthContext.Provider>
   );

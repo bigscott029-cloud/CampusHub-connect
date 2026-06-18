@@ -2,7 +2,8 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { useEffect } from "react";
+import { BrowserRouter, Routes, Route, useNavigate } from "react-router-dom";
 import { ThemeProvider } from "next-themes";
 import { AuthProvider } from "@/hooks/useAuth";
 import { AdminProvider } from "@/hooks/useAdminAuth";
@@ -15,6 +16,9 @@ import AdPopup from "@/components/ads/AdPopup";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
+import AuthCallback from "./pages/AuthCallback";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
 import AdminLogin from "./pages/AdminLogin";
 import NotFound from "./pages/NotFound";
 import Features from "./pages/Features";
@@ -48,6 +52,20 @@ import AdminPanel from "./pages/AdminPanel";
 
 const queryClient = new QueryClient();
 
+const SpaRedirectHandler = () => {
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const redirect = new URLSearchParams(window.location.search).get("redirect");
+
+    if (redirect?.startsWith("/") && !redirect.startsWith("//")) {
+      navigate(redirect, { replace: true });
+    }
+  }, [navigate]);
+
+  return null;
+};
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
@@ -57,11 +75,15 @@ const App = () => (
             <Toaster />
             <Sonner />
             <BrowserRouter>
+          <SpaRedirectHandler />
           <Routes>
             {/* Public Routes */}
             <Route path="/" element={<Index />} />
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
+            <Route path="/auth/callback" element={<AuthCallback />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/admin-login" element={<AdminLogin />} />
             <Route path="/features" element={<Features />} />
             <Route path="/universities" element={<Universities />} />
