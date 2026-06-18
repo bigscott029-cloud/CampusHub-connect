@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
-import { ArrowRight, Building2, ListChecks, Zap } from "lucide-react";
+import { ArrowRight, ListChecks, Users, Zap } from "lucide-react";
 import { getPlatformMetrics } from "@/lib/liveMetrics";
 import { formatCompactNumber } from "@/lib/utils";
 
@@ -82,12 +82,12 @@ const Hero = () => {
             </div>
             <div className="text-center">
               <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-anonymous/10 mx-auto mb-3">
-                <Building2 className="w-6 h-6 text-anonymous" />
+                <Users className="w-6 h-6 text-anonymous" />
               </div>
               <div className="font-display text-2xl font-bold">
-                {metricsQuery.isLoading ? "--" : formatCompactNumber(metrics?.universities ?? 0)}
+                {metricsQuery.isLoading ? "--" : formatCompactNumber(metrics?.registeredUsers ?? 0)}
               </div>
-              <div className="text-sm text-muted-foreground">Universities</div>
+              <div className="text-sm text-muted-foreground">Members</div>
             </div>
           </div>
         </div>

@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+import InlineAdCard from "@/components/ads/InlineAdCard";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -482,8 +483,10 @@ const Marketplace = () => {
           </div>
 
           <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
-            {filteredProducts.map((product) => (
-              <Card key={product.id} className="glass-card hover-lift cursor-pointer overflow-hidden" onClick={() => { setSelectedProduct(product); setDetailOpen(true); }}>
+            {filteredProducts.map((product, index) => (
+              <div key={product.id} className="contents">
+                {index > 0 && index % 6 === 0 && <InlineAdCard placement="marketplace" />}
+              <Card className="glass-card hover-lift cursor-pointer overflow-hidden" onClick={() => { setSelectedProduct(product); setDetailOpen(true); }}>
                 <div className="relative aspect-square bg-muted">
                   <img src={product.image} alt={product.title} className="h-full w-full object-cover" />
                   {product.urgent && <Badge className="absolute left-2 top-2 bg-destructive"><Zap className="mr-1 h-3 w-3" />Urgent</Badge>}
@@ -503,6 +506,7 @@ const Marketplace = () => {
                   </div>
                 </CardContent>
               </Card>
+              </div>
             ))}
           </div>
 

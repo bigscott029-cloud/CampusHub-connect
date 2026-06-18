@@ -35,7 +35,7 @@ const anonymousNameSuggestions = [
 
 interface AnonymousNameModalProps {
   open: boolean;
-  onClose: (name: string) => void;
+  onClose: (name?: string) => void;
 }
 
 const AnonymousNameModal = ({ open, onClose }: AnonymousNameModalProps) => {
@@ -86,8 +86,8 @@ const AnonymousNameModal = ({ open, onClose }: AnonymousNameModalProps) => {
   };
 
   return (
-    <Dialog open={open} onOpenChange={() => {}}>
-      <DialogContent className="sm:max-w-md" onPointerDownOutside={(e) => e.preventDefault()}>
+    <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Ghost className="w-5 h-5" />

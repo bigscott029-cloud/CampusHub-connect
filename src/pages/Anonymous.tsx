@@ -179,13 +179,18 @@ const Anonymous = () => {
     },
   });
 
-  const handleNameSelected = (name: string) => {
-    setAnonymousName(name);
+  const handleNameSelected = (name?: string) => {
+    if (name) setAnonymousName(name);
     setShowNameModal(false);
   };
 
   const handlePost = async () => {
-    if (!newPost.trim() || !user || !anonymousName) return;
+    if (!anonymousName) {
+      setShowNameModal(true);
+      toast.info("Create an anonymous identity before posting.");
+      return;
+    }
+    if (!newPost.trim() || !user) return;
     setIsPosting(true);
     try {
       const { error } = await supabase.from("anonymous_posts").insert({
@@ -261,7 +266,11 @@ const Anonymous = () => {
 
   const commentMutation = useMutation({
     mutationFn: async () => {
-      if (!user || !anonymousName || !selectedPost || !newComment.trim()) return;
+      if (!anonymousName) {
+        setShowNameModal(true);
+        throw new Error("Create an anonymous identity before replying.");
+      }
+      if (!user || !selectedPost || !newComment.trim()) return;
 
       const { error } = await (supabase as any).from("anonymous_comments").insert({
         post_id: selectedPost.id,
@@ -323,6 +332,9 @@ const Anonymous = () => {
             placeholder="Share your thoughts anonymously..."
             value={newPost}
             onChange={(event) => setNewPost(event.target.value)}
+            onFocus={() => {
+              if (!anonymousName) setShowNameModal(true);
+            }}
             className="min-h-[100px] resize-none border-none bg-muted/50 focus-visible:ring-1"
           />
           <div className="mt-3 flex items-center justify-between">
@@ -465,6 +477,9 @@ const Anonymous = () => {
                 placeholder="Reply anonymously..."
                 value={newComment}
                 onChange={(event) => setNewComment(event.target.value)}
+                onFocus={() => {
+                  if (!anonymousName) setShowNameModal(true);
+                }}
                 onKeyDown={(event) => event.key === "Enter" && commentMutation.mutate()}
               />
               <Button onClick={() => commentMutation.mutate()} disabled={!newComment.trim() || commentMutation.isPending}>

@@ -20,8 +20,24 @@ import {
 } from "@/components/ui/select";
 import { getNigeriaStateOption, nigeriaStates, type CampusAudienceType } from "@/lib/nigeria";
 
+const normalizeUsername = (value: string) =>
+  value.toLowerCase().replace(/[^a-z0-9_]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 24);
+
+const generateUsernameSuggestions = (base: string) => {
+  const normalized = normalizeUsername(base) || "campushub_user";
+  const suffix = Math.floor(100 + Math.random() * 900);
+  return [
+    `${normalized}${suffix}`,
+    `${normalized}_${new Date().getFullYear()}`,
+    `${normalized}_hub`,
+  ];
+};
+
 const Signup = () => {
   const [displayName, setDisplayName] = useState("");
+  const [username, setUsername] = useState("");
+  const [usernameStatus, setUsernameStatus] = useState<"idle" | "checking" | "available" | "taken">("idle");
+  const [usernameSuggestions, setUsernameSuggestions] = useState<string[]>([]);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -57,6 +73,34 @@ const Signup = () => {
     fetchInstitutions();
   }, []);
 
+  useEffect(() => {
+    const normalized = normalizeUsername(username);
+    if (!normalized || normalized.length < 3) {
+      setUsernameStatus("idle");
+      setUsernameSuggestions([]);
+      return;
+    }
+
+    const timer = window.setTimeout(async () => {
+      setUsernameStatus("checking");
+      const { data } = await (supabase as any)
+        .from("profiles")
+        .select("user_id")
+        .ilike("username", normalized)
+        .maybeSingle();
+
+      if (data) {
+        setUsernameStatus("taken");
+        setUsernameSuggestions(generateUsernameSuggestions(normalized));
+      } else {
+        setUsernameStatus("available");
+        setUsernameSuggestions([]);
+      }
+    }, 450);
+
+    return () => window.clearTimeout(timer);
+  }, [username]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -64,6 +108,25 @@ const Signup = () => {
       toast({
         title: "Invalid password",
         description: "Please ensure your password meets all requirements.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const normalizedUsername = normalizeUsername(username || displayName);
+    if (normalizedUsername.length < 3) {
+      toast({
+        title: "Username required",
+        description: "Please choose a username with at least 3 characters.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (usernameStatus === "taken") {
+      toast({
+        title: "Username taken",
+        description: "Choose one of the suggestions or edit your username.",
         variant: "destructive",
       });
       return;
@@ -92,6 +155,7 @@ const Signup = () => {
     setIsLoading(true);
 
     const { error } = await signUp(email, password, displayName, {
+      username: normalizedUsername,
       universityId: audienceType === "student" ? universityId : undefined,
       userType: audienceType,
       homeState: audienceType === "student" ? undefined : selectedState?.state,
@@ -107,10 +171,10 @@ const Signup = () => {
     } else {
       // Update profile with university after signup
       toast({
-        title: "Account created!",
-        description: "Welcome to CampusHub.",
+        title: "Registration successful",
+        description: "Check your email to verify your account, then sign in.",
       });
-      navigate("/dashboard");
+      navigate("/login?signup=check-email");
     }
 
     setIsLoading(false);
@@ -179,6 +243,39 @@ const Signup = () => {
                   minLength={2}
                   maxLength={50}
                 />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="username">Username</Label>
+                <Input
+                  id="username"
+                  type="text"
+                  placeholder="e.g. bigscott"
+                  value={username}
+                  onChange={(e) => setUsername(normalizeUsername(e.target.value))}
+                  required
+                  minLength={3}
+                  maxLength={24}
+                />
+                <div className="text-xs">
+                  {usernameStatus === "checking" && <span className="text-muted-foreground">Checking username...</span>}
+                  {usernameStatus === "available" && <span className="text-success">Username is available</span>}
+                  {usernameStatus === "taken" && <span className="text-destructive">Username is taken. Try one below.</span>}
+                </div>
+                {usernameSuggestions.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {usernameSuggestions.map((suggestion) => (
+                      <Badge
+                        key={suggestion}
+                        variant="outline"
+                        className="cursor-pointer"
+                        onClick={() => setUsername(suggestion)}
+                      >
+                        {suggestion}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="space-y-2">

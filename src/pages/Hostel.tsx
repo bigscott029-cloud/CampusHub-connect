@@ -46,6 +46,7 @@ import {
 } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import InlineAdCard from "@/components/ads/InlineAdCard";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency } from "@/lib/utils";
 
@@ -252,8 +253,10 @@ const Hostel = () => {
           </Card>
 
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {filteredHostels.map((hostel) => (
-              <Card key={hostel.id} className="glass-card hover-lift group cursor-pointer overflow-hidden" onClick={() => navigate(`/hostel/${hostel.id}`)}>
+            {filteredHostels.map((hostel, index) => (
+              <div key={hostel.id} className="contents">
+              {index > 0 && index % 6 === 0 && <InlineAdCard placement="hostel" />}
+              <Card className="glass-card hover-lift group cursor-pointer overflow-hidden" onClick={() => navigate(`/hostel/${hostel.id}`)}>
                 <div className="relative aspect-[4/3] bg-muted" onClick={(event) => event.stopPropagation()}>
                   <img src={hostel.images[currentImageIndex[hostel.id] || 0]} alt={hostel.title} className="h-full w-full object-cover" />
                   {hostel.images.length > 1 && (
@@ -312,6 +315,7 @@ const Hostel = () => {
                   </div>
                 </CardContent>
               </Card>
+              </div>
             ))}
           </div>
 

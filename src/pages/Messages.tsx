@@ -24,6 +24,8 @@ import { Card, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { formatRelativeTime } from "@/lib/utils";
@@ -42,6 +44,10 @@ interface MessageView {
   sender_id: string;
   content: string;
   created_at: string;
+  expires_at?: string | null;
+  view_once?: boolean | null;
+  viewed_at?: string | null;
+  saved_by?: string[] | null;
 }
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -54,6 +60,9 @@ const Messages = () => {
   const [newMessage, setNewMessage] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [emojiOpen, setEmojiOpen] = useState(false);
+  const [disappearingEnabled, setDisappearingEnabled] = useState(true);
+  const [viewOnce, setViewOnce] = useState(false);
+  const [chatStyle, setChatStyle] = useState<"whatsapp" | "snapchat" | "telegram">("whatsapp");
 
   const conversationsQuery = useQuery({
     queryKey: ["conversations", user?.id],
@@ -113,8 +122,9 @@ const Messages = () => {
     queryFn: async (): Promise<MessageView[]> => {
       const { data, error } = await supabase
         .from("messages")
-        .select("id, sender_id, content, created_at")
+        .select("id, sender_id, content, created_at, expires_at, view_once, viewed_at, saved_by")
         .eq("conversation_id", selectedChat)
+        .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
         .order("created_at", { ascending: true });
 
       if (error) throw error;
@@ -197,6 +207,8 @@ const Messages = () => {
         conversation_id: selectedChat,
         sender_id: user.id,
         content: newMessage.trim(),
+        expires_at: disappearingEnabled ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() : null,
+        view_once: viewOnce,
       });
 
       if (error) throw error;
@@ -205,6 +217,7 @@ const Messages = () => {
     },
     onSuccess: () => {
       setNewMessage("");
+      setViewOnce(false);
       queryClient.invalidateQueries({ queryKey: ["messages", selectedChat] });
       queryClient.invalidateQueries({ queryKey: ["conversations"] });
     },
@@ -223,6 +236,12 @@ const Messages = () => {
       event.preventDefault();
       sendMessageMutation.mutate();
     }
+  };
+
+  const markViewOnceRead = async (message: MessageView) => {
+    if (!user || message.sender_id === user.id || !message.view_once || message.viewed_at) return;
+    await (supabase as any).from("messages").update({ viewed_at: new Date().toISOString() }).eq("id", message.id);
+    queryClient.invalidateQueries({ queryKey: ["messages", selectedChat] });
   };
 
   return (
@@ -266,7 +285,12 @@ const Messages = () => {
                   <Avatar><AvatarFallback className="bg-primary/10 text-primary">{selectedConversation.name.charAt(0)}</AvatarFallback></Avatar>
                   <div><p className="font-semibold">{selectedConversation.name}</p><p className="text-xs text-muted-foreground">Direct message</p></div>
                 </div>
-                <div className="flex items-center gap-1">
+                <div className="flex flex-wrap items-center justify-end gap-1">
+                  {(["whatsapp", "snapchat", "telegram"] as const).map((style) => (
+                    <Button key={style} variant={chatStyle === style ? "default" : "ghost"} size="sm" className="h-8 capitalize" onClick={() => setChatStyle(style)}>
+                      {style}
+                    </Button>
+                  ))}
                   <Button variant="ghost" size="icon" onClick={() => toast.info(`Calling ${selectedConversation.name}...`)}><Phone className="h-4 w-4" /></Button>
                   <Button variant="ghost" size="icon" onClick={() => toast.info(`Video calling ${selectedConversation.name}...`)}><Video className="h-4 w-4" /></Button>
                   <Button variant="ghost" size="icon" onClick={() => toast.info("Conversation options will appear here once moderation tools are enabled.")}>
@@ -280,11 +304,26 @@ const Messages = () => {
               <div className="space-y-4">
                 {(messagesQuery.data ?? []).map((message) => {
                   const isMine = message.sender_id === user?.id;
+                  if (!isMine && message.view_once && message.viewed_at) {
+                    return (
+                      <div key={message.id} className="flex justify-start">
+                        <div className="rounded-2xl bg-muted px-4 py-2 text-sm text-muted-foreground">View-once message opened</div>
+                      </div>
+                    );
+                  }
+                  if (!isMine && message.view_once && !message.viewed_at) {
+                    markViewOnceRead(message);
+                  }
+                  const mineClass = chatStyle === "snapchat" ? "bg-accent text-accent-foreground" : chatStyle === "telegram" ? "bg-sky-600 text-white" : "bg-primary text-primary-foreground";
                   return (
                     <div key={message.id} className={`flex ${isMine ? "justify-end" : "justify-start"}`}>
-                      <div className={`max-w-[70%] rounded-2xl px-4 py-2 ${isMine ? "rounded-br-md bg-primary text-primary-foreground" : "rounded-bl-md bg-muted"}`}>
+                      <div className={`max-w-[70%] rounded-2xl px-4 py-2 ${isMine ? `rounded-br-md ${mineClass}` : "rounded-bl-md bg-muted"}`}>
                         <p className="text-sm">{message.content}</p>
-                        <p className={`mt-1 text-xs ${isMine ? "text-primary-foreground/70" : "text-muted-foreground"}`}>{formatRelativeTime(message.created_at)}</p>
+                        <p className={`mt-1 text-xs ${isMine ? "text-primary-foreground/70" : "text-muted-foreground"}`}>
+                          {formatRelativeTime(message.created_at)}
+                          {message.view_once && " • view once"}
+                          {message.expires_at && " • 24h"}
+                        </p>
                       </div>
                     </div>
                   );
@@ -293,6 +332,16 @@ const Messages = () => {
             </ScrollArea>
 
             <div className="border-t border-border/50 p-4">
+              <div className="mb-3 flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
+                <Label className="flex items-center gap-2">
+                  <Switch checked={disappearingEnabled} onCheckedChange={setDisappearingEnabled} />
+                  Disappear after 24h
+                </Label>
+                <Label className="flex items-center gap-2">
+                  <Switch checked={viewOnce} onCheckedChange={setViewOnce} />
+                  View once
+                </Label>
+              </div>
               <div className="flex items-center gap-2">
                 <Input placeholder="Type a message..." value={newMessage} onChange={(event) => setNewMessage(event.target.value)} onKeyDown={handleKeyPress} className="flex-1" />
                 <Popover open={emojiOpen} onOpenChange={setEmojiOpen}>

@@ -5,6 +5,7 @@ type CountQuery = PromiseLike<{ count: number | null; error: { message?: string 
 
 export interface PlatformMetrics {
   universities: number;
+  registeredUsers: number;
   publicGists: number;
   anonymousPosts: number;
   marketplaceListings: number;
@@ -46,6 +47,7 @@ export async function getPlatformMetrics(): Promise<PlatformMetrics> {
 
   const [
     universities,
+    registeredUsers,
     publicGists,
     anonymousPosts,
     marketplaceListings,
@@ -56,6 +58,7 @@ export async function getPlatformMetrics(): Promise<PlatformMetrics> {
     unreadCapableMessages,
   ] = await Promise.all([
     safeCount(supabase.from("universities").select("id", { count: "exact", head: true })),
+    safeCount(supabase.from("profiles").select("id", { count: "exact", head: true })),
     safeCount(supabase.from("posts").select("id", { count: "exact", head: true })),
     safeCount(supabase.from("anonymous_posts").select("id", { count: "exact", head: true })),
     safeCount(supabase.from("marketplace_listings").select("id", { count: "exact", head: true }).eq("status", "approved")),
@@ -70,6 +73,7 @@ export async function getPlatformMetrics(): Promise<PlatformMetrics> {
 
   return {
     universities,
+    registeredUsers,
     publicGists,
     anonymousPosts,
     marketplaceListings,

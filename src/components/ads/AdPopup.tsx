@@ -20,6 +20,8 @@ interface Ad {
   sponsor_name: string;
   placement_type: "global" | "targeted" | "geo";
   target_scope?: "general" | "region" | "institution" | null;
+  placement_slots?: string[] | null;
+  target_user_types?: string[] | null;
   tier_price: number;
   reward_points: number;
   predicted_score: number;
@@ -42,7 +44,7 @@ const AdPopup = () => {
     queryFn: async () => {
       const { data } = await (supabase as any)
         .from("profiles")
-        .select("university_id, department, home_region")
+        .select("university_id, department, home_region, user_type")
         .eq("user_id", user?.id)
         .maybeSingle();
       return data;
@@ -54,7 +56,7 @@ const AdPopup = () => {
     queryFn: async (): Promise<Ad[]> => {
       const { data, error } = await (supabase as any)
         .from("ads")
-        .select("id, title, description, creative_url, cta_text, cta_url, sponsor_name, placement_type, target_scope, tier_price, reward_points, predicted_score, priority, max_impressions_per_user, cooldown_hours, target_university_id, target_departments, geo_region")
+        .select("id, title, description, creative_url, cta_text, cta_url, sponsor_name, placement_type, target_scope, placement_slots, target_user_types, tier_price, reward_points, predicted_score, priority, max_impressions_per_user, cooldown_hours, target_university_id, target_departments, geo_region")
         .eq("status", "active")
         .eq("payment_status", "paid")
         .lte("starts_at", new Date().toISOString())
@@ -73,6 +75,9 @@ const AdPopup = () => {
     const viewerKey = user?.id || "guest";
     const now = Date.now();
     const eligibleAds = ads.filter((ad) => {
+      if (ad.placement_slots?.length && !ad.placement_slots.includes("popup")) return false;
+      if (ad.target_user_types?.length && !ad.target_user_types.includes(profile?.user_type ?? "")) return false;
+
       const frequencyKey = `campushub_ad_frequency:${viewerKey}:${ad.id}`;
       const raw = localStorage.getItem(frequencyKey);
       let frequency: { shownCount?: number; lastShownAt?: number } = {};
@@ -81,7 +86,7 @@ const AdPopup = () => {
       } catch {
         localStorage.removeItem(frequencyKey);
       }
-      const maxImpressions = ad.max_impressions_per_user ?? 3;
+      const maxImpressions = ad.max_impressions_per_user ?? 6;
       const cooldownMs = (ad.cooldown_hours ?? 24) * 60 * 60 * 1000;
 
       if ((frequency.shownCount ?? 0) >= maxImpressions) return false;

@@ -1,6 +1,8 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 import {
   Sidebar,
   SidebarContent,
@@ -49,14 +51,28 @@ const secondaryNavItems = [
   { title: "Notifications", url: "/notifications", icon: Bell },
   { title: "Profile", url: "/profile", icon: User },
   { title: "Settings", url: "/settings", icon: Settings },
-  { title: "Admin Panel", url: "/admin", icon: Shield },
 ];
+
+const adminNavItem = { title: "Admin Panel", url: "/admin", icon: Shield };
 
 const DashboardSidebar = () => {
   const { user, signOut } = useAuth();
   const location = useLocation();
   const { state, toggleSidebar } = useSidebar();
   const isCollapsed = state === "collapsed";
+  const rolesQuery = useQuery({
+    queryKey: ["sidebar-roles", user?.id],
+    enabled: Boolean(user),
+    queryFn: async () => {
+      const { data } = await (supabase as any)
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user?.id);
+      return (data ?? []).map((item: { role: string }) => item.role);
+    },
+  });
+  const canSeeAdmin = (rolesQuery.data ?? []).some((role) => ["super_admin", "moderator", "sub_admin", "university_admin"].includes(role));
+  const accountItems = canSeeAdmin ? [...secondaryNavItems, adminNavItem] : secondaryNavItems;
 
   const isActive = (path: string) => location.pathname === path;
 
@@ -122,7 +138,7 @@ const DashboardSidebar = () => {
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {secondaryNavItems.map((item) => (
+              {accountItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild isActive={isActive(item.url)} tooltip={item.title}>
                     <NavLink to={item.url} className="flex items-center gap-3">

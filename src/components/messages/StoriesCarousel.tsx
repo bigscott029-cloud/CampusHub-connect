@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -53,6 +53,8 @@ const StoriesCarousel = ({ onCreateStory }: StoriesCarouselProps) => {
   const [createStoryOpen, setCreateStoryOpen] = useState(false);
   const [storyType, setStoryType] = useState<"text" | "image" | "video">("text");
   const [storyContent, setStoryContent] = useState("");
+  const [storyFile, setStoryFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const storiesQuery = useQuery({
     queryKey: ["stories-carousel"],
@@ -104,13 +106,27 @@ const StoriesCarousel = ({ onCreateStory }: StoriesCarouselProps) => {
   const createStoryMutation = useMutation({
     mutationFn: async () => {
       if (!user) throw new Error("Please sign in to post a story.");
-      if (!storyContent.trim()) throw new Error("Please add content to your story");
+      if (storyType === "text" && !storyContent.trim()) throw new Error("Please add content to your story");
+      if (storyType !== "text" && !storyContent.trim() && !storyFile) throw new Error("Please add media to your story");
+
+      let uploadedUrl = storyContent.trim();
+      if (storyType !== "text" && storyFile) {
+        const ext = storyFile.name.split(".").pop() || (storyType === "video" ? "mp4" : "jpg");
+        const path = `${user.id}/stories/${crypto.randomUUID()}.${ext}`;
+        const { error: uploadError } = await supabase.storage.from("story-media").upload(path, storyFile, {
+          cacheControl: "3600",
+          upsert: false,
+        });
+        if (uploadError) throw uploadError;
+        const { data } = supabase.storage.from("story-media").getPublicUrl(path);
+        uploadedUrl = data.publicUrl;
+      }
 
       const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
       const { error } = await supabase.from("stories").insert({
         user_id: user.id,
         content_type: storyType,
-        content_url: storyType === "text" ? null : storyContent.trim(),
+        content_url: storyType === "text" ? null : uploadedUrl,
         text_content: storyType === "text" ? storyContent.trim() : null,
         expires_at: expiresAt,
       });
@@ -121,6 +137,7 @@ const StoriesCarousel = ({ onCreateStory }: StoriesCarouselProps) => {
       toast.success("Story posted!");
       setCreateStoryOpen(false);
       setStoryContent("");
+      setStoryFile(null);
       onCreateStory?.();
       queryClient.invalidateQueries({ queryKey: ["stories-carousel"] });
     },
@@ -193,11 +210,35 @@ const StoriesCarousel = ({ onCreateStory }: StoriesCarouselProps) => {
                       maxLength={280}
                     />
                   ) : (
-                    <Input
-                      placeholder={`Paste ${storyType} URL...`}
-                      value={storyContent}
-                      onChange={(e) => setStoryContent(e.target.value)}
-                    />
+                    <div
+                      className="rounded-lg border border-dashed p-4 text-center"
+                      onDragOver={(event) => event.preventDefault()}
+                      onDrop={(event) => {
+                        event.preventDefault();
+                        const file = event.dataTransfer.files?.[0];
+                        if (file) setStoryFile(file);
+                      }}
+                    >
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept={storyType === "image" ? "image/*" : "video/*"}
+                        className="hidden"
+                        onChange={(event) => setStoryFile(event.target.files?.[0] ?? null)}
+                      />
+                      <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()}>
+                        Choose {storyType}
+                      </Button>
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        {storyFile ? storyFile.name : `Drag and drop a ${storyType}, or paste a URL below.`}
+                      </p>
+                      <Input
+                        className="mt-3"
+                        placeholder={`Optional ${storyType} URL...`}
+                        value={storyContent}
+                        onChange={(e) => setStoryContent(e.target.value)}
+                      />
+                    </div>
                   )}
 
                   <p className="text-xs text-muted-foreground">

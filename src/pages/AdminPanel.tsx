@@ -48,6 +48,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAdminAuth } from "@/hooks/useAdminAuth";
 import { useNavigate } from "react-router-dom";
+import { adTiers, getAdTier } from "@/lib/adTiers";
 import { nigeriaStates } from "@/lib/nigeria";
 
 const emptyAdForm = {
@@ -57,6 +58,8 @@ const emptyAdForm = {
   creative_url: "",
   cta_text: "Learn more",
   cta_url: "",
+  tier_name: "starter",
+  placement_slots: "popup,marketplace,hostel",
   target_scope: "general",
   geo_region: "",
   starts_at: "",
@@ -66,7 +69,7 @@ const emptyAdForm = {
   tier_price: "0",
   reward_points: "0",
   priority: "0",
-  max_impressions_per_user: "3",
+  max_impressions_per_user: "6",
   cooldown_hours: "24",
   admin_notes: "",
 };
@@ -154,7 +157,7 @@ const AdminPanel = () => {
 
       const { data: adCampaigns, error: adsError } = await (supabase as any)
         .from("ads")
-        .select("id, title, description, creative_url, cta_text, cta_url, sponsor_name, placement_type, target_scope, status, payment_status, tier_price, geo_region, starts_at, ends_at, impressions_count, clicks_count, conversions_count, reward_points, priority, max_impressions_per_user, cooldown_hours, admin_notes, created_at")
+        .select("id, title, description, creative_url, cta_text, cta_url, sponsor_name, placement_type, target_scope, tier_name, placement_slots, status, payment_status, tier_price, geo_region, starts_at, ends_at, impressions_count, clicks_count, conversions_count, reward_points, priority, max_impressions_per_user, cooldown_hours, admin_notes, created_at")
         .order("created_at", { ascending: false });
 
       if (adsError) throw adsError;
@@ -454,6 +457,8 @@ const AdminPanel = () => {
       creative_url: ad.creative_url || "",
       cta_text: ad.cta_text || "Learn more",
       cta_url: ad.cta_url || "",
+      tier_name: ad.tier_name || "starter",
+      placement_slots: (ad.placement_slots ?? ["popup"]).join(","),
       target_scope: ad.target_scope || (ad.placement_type === "geo" ? "region" : "general"),
       geo_region: ad.geo_region || "",
       starts_at: ad.starts_at ? new Date(ad.starts_at).toISOString().slice(0, 16) : "",
@@ -486,6 +491,8 @@ const AdminPanel = () => {
         creative_url: adForm.creative_url.trim() || null,
         cta_text: adForm.cta_text.trim() || "Learn more",
         cta_url: adForm.cta_url.trim(),
+        tier_name: adForm.tier_name,
+        placement_slots: adForm.placement_slots.split(",").map((slot) => slot.trim()).filter(Boolean),
         placement_type: adForm.target_scope === "region" ? "geo" : "global",
         target_scope: adForm.target_scope,
         geo_region: adForm.target_scope === "region" ? adForm.geo_region || null : null,
@@ -975,6 +982,37 @@ const AdminPanel = () => {
             <div className="space-y-2">
               <Label>CTA Text</Label>
               <Input value={adForm.cta_text} onChange={(event) => setAdForm({ ...adForm, cta_text: event.target.value })} placeholder="Learn more" />
+            </div>
+            <div className="space-y-2">
+              <Label>Price Tier</Label>
+              <Select
+                value={adForm.tier_name}
+                onValueChange={(value) => {
+                  const tier = getAdTier(value);
+                  setAdForm({
+                    ...adForm,
+                    tier_name: tier.id,
+                    tier_price: String(tier.price),
+                    priority: String(tier.priority),
+                    max_impressions_per_user: String(tier.maxImpressionsPerUser),
+                    cooldown_hours: String(tier.cooldownHours),
+                  });
+                }}
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {adTiers.map((tier) => (
+                    <SelectItem key={tier.id} value={tier.id}>
+                      {tier.label} - ₦{tier.price.toLocaleString()}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2 md:col-span-2">
+              <Label>Placement Slots</Label>
+              <Input value={adForm.placement_slots} onChange={(event) => setAdForm({ ...adForm, placement_slots: event.target.value })} placeholder="popup,marketplace,hostel" />
+              <p className="text-xs text-muted-foreground">Use comma-separated slots: popup, marketplace, hostel, inline.</p>
             </div>
             <div className="space-y-2">
               <Label>Target</Label>

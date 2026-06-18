@@ -15,6 +15,7 @@ interface AuthContextType {
       userType?: string;
       homeState?: string;
       homeRegion?: string;
+      username?: string;
     },
   ) => Promise<{ error: Error | null }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
@@ -57,15 +58,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       userType?: string;
       homeState?: string;
       homeRegion?: string;
+      username?: string;
     },
   ) => {
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
-        emailRedirectTo: window.location.origin,
+        emailRedirectTo: `${window.location.origin}/login?verified=1`,
         data: {
           display_name: displayName,
+          username: options?.username,
           university_id: options?.universityId,
           user_type: options?.userType,
           home_state: options?.homeState,
@@ -79,6 +82,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         .from("profiles")
         .update({
           university_id: options?.universityId || null,
+          username: options?.username || null,
           user_type: options?.userType || "student",
           home_state: options?.homeState || null,
           home_region: options?.homeRegion || null,

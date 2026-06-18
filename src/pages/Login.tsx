@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,7 +15,24 @@ const Login = () => {
   const [isLoading, setIsLoading] = useState(false);
   const { signIn } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { toast } = useToast();
+
+  useEffect(() => {
+    if (searchParams.get("verified")) {
+      toast({
+        title: "Email verified",
+        description: "You can now sign in to CampusHub.",
+      });
+    }
+
+    if (searchParams.get("signup") === "check-email") {
+      toast({
+        title: "Check your email",
+        description: "Open the verification link we sent, then sign in here.",
+      });
+    }
+  }, [searchParams, toast]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

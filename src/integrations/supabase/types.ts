@@ -163,6 +163,7 @@ export type Database = {
           owner_id: string | null
           payment_status: string
           placement_type: string
+          placement_slots: string[]
           priority: number
           predicted_score: number
           reward_points: number
@@ -172,6 +173,8 @@ export type Database = {
           target_departments: string[]
           target_interests: string[]
           target_scope: string
+          target_user_types: string[]
+          tier_name: string
           target_university_id: string | null
           tier_price: number
           title: string
@@ -196,6 +199,7 @@ export type Database = {
           owner_id?: string | null
           payment_status?: string
           placement_type: string
+          placement_slots?: string[]
           priority?: number
           predicted_score?: number
           reward_points?: number
@@ -205,6 +209,8 @@ export type Database = {
           target_departments?: string[]
           target_interests?: string[]
           target_scope?: string
+          target_user_types?: string[]
+          tier_name?: string
           target_university_id?: string | null
           tier_price?: number
           title: string
@@ -229,6 +235,7 @@ export type Database = {
           owner_id?: string | null
           payment_status?: string
           placement_type?: string
+          placement_slots?: string[]
           priority?: number
           predicted_score?: number
           reward_points?: number
@@ -238,6 +245,8 @@ export type Database = {
           target_departments?: string[]
           target_interests?: string[]
           target_scope?: string
+          target_user_types?: string[]
+          tier_name?: string
           target_university_id?: string | null
           tier_price?: number
           title?: string
@@ -726,31 +735,43 @@ export type Database = {
           content: string
           conversation_id: string
           created_at: string
+          expires_at: string | null
           id: string
           is_read: boolean | null
           reference_id: string | null
           reference_type: string | null
+          saved_by: string[]
           sender_id: string
+          view_once: boolean
+          viewed_at: string | null
         }
         Insert: {
           content: string
           conversation_id: string
           created_at?: string
+          expires_at?: string | null
           id?: string
           is_read?: boolean | null
           reference_id?: string | null
           reference_type?: string | null
+          saved_by?: string[]
           sender_id: string
+          view_once?: boolean
+          viewed_at?: string | null
         }
         Update: {
           content?: string
           conversation_id?: string
           created_at?: string
+          expires_at?: string | null
           id?: string
           is_read?: boolean | null
           reference_id?: string | null
           reference_type?: string | null
+          saved_by?: string[]
           sender_id?: string
+          view_once?: boolean
+          viewed_at?: string | null
         }
         Relationships: [
           {
@@ -1073,6 +1094,7 @@ export type Database = {
           updated_at: string
           user_id: string
           user_type: string
+          username: string | null
           verification_document_url: string | null
           verification_notes: string | null
           verified_at: string | null
@@ -1112,6 +1134,7 @@ export type Database = {
           updated_at?: string
           user_id: string
           user_type?: string
+          username?: string | null
           verification_document_url?: string | null
           verification_notes?: string | null
           verified_at?: string | null
@@ -1151,6 +1174,7 @@ export type Database = {
           updated_at?: string
           user_id?: string
           user_type?: string
+          username?: string | null
           verification_document_url?: string | null
           verification_notes?: string | null
           verified_at?: string | null

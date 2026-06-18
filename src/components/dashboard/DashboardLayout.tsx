@@ -1,6 +1,7 @@
 import { Outlet } from "react-router-dom";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import DashboardSidebar from "@/components/dashboard/DashboardSidebar";
+import CampusAIButton from "@/components/ai/CampusAIButton";
 import { Menu } from "lucide-react";
 
 const DashboardLayout = () => {
@@ -20,6 +21,7 @@ const DashboardLayout = () => {
           <div className="flex-1 p-4 md:p-6 lg:p-8 overflow-auto">
             <Outlet />
           </div>
+          <CampusAIButton />
         </main>
       </div>
     </SidebarProvider>

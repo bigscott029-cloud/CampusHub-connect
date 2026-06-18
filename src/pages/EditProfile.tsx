@@ -4,6 +4,7 @@ import {
   AlertTriangle,
   ArrowLeft,
   Camera,
+  Upload,
   ShieldCheck,
   User,
 } from "lucide-react";
@@ -36,7 +37,36 @@ import {
 } from "@/components/ui/alert-dialog";
 import { InstitutionCombobox, type InstitutionOption } from "@/components/campus/InstitutionCombobox";
 
-const departments = ["Computer Science", "Medicine", "Engineering", "Law", "Business Administration", "Mass Communication", "Accounting", "Economics", "Other"];
+const departments = [
+  "Accounting",
+  "Agricultural Economics",
+  "Architecture",
+  "Biochemistry",
+  "Business Administration",
+  "Chemical Engineering",
+  "Civil Engineering",
+  "Computer Engineering",
+  "Computer Science",
+  "Economics",
+  "Education",
+  "Electrical/Electronics Engineering",
+  "English and Literary Studies",
+  "Estate Management",
+  "Law",
+  "Mass Communication",
+  "Mathematics",
+  "Mechanical Engineering",
+  "Medicine and Surgery",
+  "Microbiology",
+  "Nursing",
+  "Pharmacy",
+  "Political Science",
+  "Public Administration",
+  "Sociology",
+  "Statistics",
+  "Theatre Arts",
+  "Other",
+];
 const levels = ["100L", "200L", "300L", "400L", "500L", "600L", "Postgraduate"];
 
 const EditProfile = () => {
@@ -51,12 +81,15 @@ const EditProfile = () => {
   const [verificationStatus, setVerificationStatus] = useState("unverified");
   const [isSubmittingVerification, setIsSubmittingVerification] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement>(null);
+  const verificationDocumentRef = useRef<HTMLInputElement>(null);
+  const verificationCameraRef = useRef<HTMLInputElement>(null);
 
   const [formData, setFormData] = useState({
     displayName: "",
     bio: "",
     avatarUrl: "",
     department: "",
+    departmentOther: "",
     level: "",
     universityId: "",
   });
@@ -83,6 +116,7 @@ const EditProfile = () => {
           bio: profile.bio || "",
           avatarUrl: profile.avatar_url || "",
           department: profile.department || "",
+          departmentOther: "",
           level: profile.level || "",
           universityId: profile.university_id || "",
         });
@@ -131,6 +165,7 @@ const EditProfile = () => {
 
     const universityChanged = formData.universityId !== initialUniversityId;
     const isTrackedUniversityChange = Boolean(initialUniversityId) && universityChanged;
+    const finalDepartment = formData.department === "Other" ? formData.departmentOther.trim() : formData.department;
 
     if (isTrackedUniversityChange && universityChangeCount >= 2) {
       toast.error("You have reached the university change limit. An admin request has been created.");
@@ -155,7 +190,7 @@ const EditProfile = () => {
         display_name: formData.displayName,
         bio: formData.bio || null,
         avatar_url: formData.avatarUrl || null,
-        department: formData.department || null,
+        department: finalDepartment || null,
         level: formData.level || null,
         university_id: formData.universityId || null,
       };
@@ -178,6 +213,26 @@ const EditProfile = () => {
       toast.error("Failed to update profile.");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const uploadVerificationDocument = async (file: File) => {
+    if (!user) return;
+
+    try {
+      const cleanName = file.name.replace(/[^a-zA-Z0-9.]+/g, "-").toLowerCase();
+      const path = `${user.id}/verification/${crypto.randomUUID()}-${cleanName}`;
+      const { error } = await supabase.storage.from("profile-media").upload(path, file, {
+        cacheControl: "3600",
+        upsert: false,
+      });
+      if (error) throw error;
+      const { data } = supabase.storage.from("profile-media").getPublicUrl(path);
+      setVerificationForm((prev) => ({ ...prev, documentUrl: data.publicUrl }));
+      toast.success("Verification document uploaded.");
+    } catch (error) {
+      console.error("Error uploading verification document:", error);
+      toast.error("Failed to upload document.");
     }
   };
 
@@ -357,6 +412,14 @@ const EditProfile = () => {
                     ))}
                   </SelectContent>
                 </Select>
+                {formData.department === "Other" && (
+                  <Input
+                    className="mt-2"
+                    placeholder="Enter your department/course"
+                    value={formData.departmentOther}
+                    onChange={(event) => setFormData((prev) => ({ ...prev, departmentOther: event.target.value }))}
+                  />
+                )}
               </div>
               <div>
                 <Label>Level</Label>
@@ -431,6 +494,37 @@ const EditProfile = () => {
                 onChange={(event) => setVerificationForm((prev) => ({ ...prev, documentUrl: event.target.value }))}
                 placeholder="Optional link to school ID/admission proof"
               />
+              <div className="mt-2 flex flex-wrap gap-2">
+                <input
+                  ref={verificationDocumentRef}
+                  type="file"
+                  accept="image/*,application/pdf"
+                  className="hidden"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    if (file) uploadVerificationDocument(file);
+                  }}
+                />
+                <input
+                  ref={verificationCameraRef}
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  className="hidden"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    if (file) uploadVerificationDocument(file);
+                  }}
+                />
+                <Button type="button" variant="outline" size="sm" onClick={() => verificationDocumentRef.current?.click()}>
+                  <Upload className="mr-1 h-4 w-4" />
+                  Upload file
+                </Button>
+                <Button type="button" variant="outline" size="sm" onClick={() => verificationCameraRef.current?.click()}>
+                  <Camera className="mr-1 h-4 w-4" />
+                  Capture photo
+                </Button>
+              </div>
             </div>
             <Button
               type="button"
