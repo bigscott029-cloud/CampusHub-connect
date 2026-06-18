@@ -1494,6 +1494,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      get_registered_user_count: {
+        Args: Record<PropertyKey, never>
+        Returns: number
+      }
       verify_admin_credentials: {
         Args: { p_email: string; p_password: string }
         Returns: Json

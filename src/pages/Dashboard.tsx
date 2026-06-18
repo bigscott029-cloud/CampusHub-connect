@@ -9,7 +9,6 @@ import {
   MessageCircle,
   Newspaper,
   ShoppingBag,
-  TrendingUp,
   Users,
   Ghost,
 } from "lucide-react";
@@ -101,6 +100,7 @@ const Dashboard = () => {
       }
 
       const [
+        { data: registeredUsers, error: registeredUsersError },
         { count: newGistsToday, error: gistsError },
         { count: unreadNotifications, error: notificationsError },
         { count: upcomingExams, error: examsError },
@@ -110,6 +110,7 @@ const Dashboard = () => {
         { data: trendingPosts, error: trendingError },
         { data: conversations, error: conversationsError },
       ] = await Promise.all([
+        supabase.rpc("get_registered_user_count"),
         gistCountQuery,
         supabase
           .from("notifications")
@@ -127,8 +128,8 @@ const Dashboard = () => {
           .or(`participant_1.eq.${user.id},participant_2.eq.${user.id}`),
       ]);
 
-      if (gistsError || notificationsError || examsError || recentPostsError || marketplaceError || hostelsError || trendingError || conversationsError) {
-        throw gistsError || notificationsError || examsError || recentPostsError || marketplaceError || hostelsError || trendingError || conversationsError;
+      if (registeredUsersError || gistsError || notificationsError || examsError || recentPostsError || marketplaceError || hostelsError || trendingError || conversationsError) {
+        throw registeredUsersError || gistsError || notificationsError || examsError || recentPostsError || marketplaceError || hostelsError || trendingError || conversationsError;
       }
 
       let unreadMessages = 0;
@@ -196,6 +197,7 @@ const Dashboard = () => {
       return {
         universityName: university?.name ?? "Campus community",
         stats: {
+          registeredUsers: registeredUsers ?? 0,
           newGistsToday: newGistsToday ?? 0,
           unreadNotifications: unreadNotifications ?? 0,
           unreadMessages,
@@ -242,13 +244,13 @@ const Dashboard = () => {
           <CardContent className="pt-6">
             <div className="flex items-center gap-3">
               <div className="rounded-lg bg-primary/10 p-2">
-                <TrendingUp className="h-5 w-5 text-primary" />
+                <Users className="h-5 w-5 text-primary" />
               </div>
               <div>
                 <p className="text-2xl font-bold">
-                  {dashboardQuery.isLoading ? "--" : formatCompactNumber(data?.stats.newGistsToday ?? 0)}
+                  {dashboardQuery.isLoading ? "--" : formatCompactNumber(data?.stats.registeredUsers ?? 0)}
                 </p>
-                <p className="text-xs text-muted-foreground">New Gists Today</p>
+                <p className="text-xs text-muted-foreground">Registered Users</p>
               </div>
             </div>
           </CardContent>
