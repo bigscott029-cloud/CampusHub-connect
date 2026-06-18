@@ -2,6 +2,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { formatRelativeTime } from "@/lib/utils";
 
 type CountQuery = PromiseLike<{ count: number | null; error: { message?: string } | null }>;
+type RpcNumberQuery = PromiseLike<{ data: number | null; error: { message?: string } | null }>;
 
 export interface PlatformMetrics {
   universities: number;
@@ -42,6 +43,17 @@ async function safeCount(query: CountQuery) {
   return count ?? 0;
 }
 
+async function safeNumberRpc(query: RpcNumberQuery) {
+  const { data, error } = await query;
+
+  if (error) {
+    console.warn("Live metric unavailable:", error.message ?? error);
+    return 0;
+  }
+
+  return data ?? 0;
+}
+
 export async function getPlatformMetrics(): Promise<PlatformMetrics> {
   const nowIso = new Date().toISOString();
 
@@ -58,7 +70,7 @@ export async function getPlatformMetrics(): Promise<PlatformMetrics> {
     unreadCapableMessages,
   ] = await Promise.all([
     safeCount(supabase.from("universities").select("id", { count: "exact", head: true })),
-    safeCount(supabase.from("profiles").select("id", { count: "exact", head: true })),
+    safeNumberRpc(supabase.rpc("get_registered_user_count")),
     safeCount(supabase.from("posts").select("id", { count: "exact", head: true })),
     safeCount(supabase.from("anonymous_posts").select("id", { count: "exact", head: true })),
     safeCount(supabase.from("marketplace_listings").select("id", { count: "exact", head: true }).eq("status", "approved")),
