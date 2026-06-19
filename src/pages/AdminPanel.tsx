@@ -42,6 +42,7 @@ import {
   Pencil,
   PlayCircle,
   Plus,
+  Trophy,
   Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -88,6 +89,7 @@ const AdminPanel = () => {
   const [studentVerificationRequests, setStudentVerificationRequests] = useState<any[]>([]);
   const [agentRequests, setAgentRequests] = useState<any[]>([]);
   const [ads, setAds] = useState<any[]>([]);
+  const [referralLeaders, setReferralLeaders] = useState<any[]>([]);
   const [adDialogOpen, setAdDialogOpen] = useState(false);
   const [editingAd, setEditingAd] = useState<any>(null);
   const [adForm, setAdForm] = useState(emptyAdForm);
@@ -162,6 +164,12 @@ const AdminPanel = () => {
 
       if (adsError) throw adsError;
 
+      const { data: refRanks, error: refRankError } = await (supabase as any).rpc("get_referral_leaderboard", {
+        limit_count: 20,
+      });
+
+      if (refRankError) throw refRankError;
+
       setHostelRequests(hostels || []);
       setRoommateRequests(roommates || []);
       setMarketplaceRequests(marketplace || []);
@@ -169,6 +177,7 @@ const AdminPanel = () => {
       setStudentVerificationRequests(studentVerifications || []);
       setAgentRequests(agents || []);
       setAds(adCampaigns || []);
+      setReferralLeaders(refRanks || []);
     } catch (error) {
       console.error("Error fetching requests:", error);
       toast.error("Failed to load admin requests");
@@ -732,6 +741,10 @@ const AdminPanel = () => {
             <Megaphone className="w-4 h-4" />
             Ads ({ads.length})
           </TabsTrigger>
+          <TabsTrigger value="referrals" className="gap-1">
+            <Trophy className="w-4 h-4" />
+            Ref. Rank
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="hostel" className="space-y-4">
@@ -946,6 +959,36 @@ const AdminPanel = () => {
               </Card>
             ))
           )}
+        </TabsContent>
+
+        <TabsContent value="referrals" className="space-y-4">
+          <Card className="glass-card">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Trophy className="h-5 w-5 text-warning" />
+                Top Referral Leaders
+              </CardTitle>
+              <CardDescription>Top 20 users by registered referrals.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {referralLeaders.length === 0 ? (
+                <p className="py-8 text-center text-muted-foreground">No referrals recorded yet.</p>
+              ) : (
+                referralLeaders.map((leader, index) => (
+                  <div key={leader.user_id} className="flex items-center gap-3 rounded-lg border border-border/60 p-3">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
+                      {index + 1}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-medium">{leader.display_name}</p>
+                      <p className="truncate text-xs text-muted-foreground">@{leader.username || "campushub"} • {leader.referral_code}</p>
+                    </div>
+                    <Badge variant="secondary">{Number(leader.referral_count ?? 0).toLocaleString()} refs</Badge>
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
 

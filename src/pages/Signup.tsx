@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -39,6 +39,8 @@ const Signup = () => {
   const [usernameStatus, setUsernameStatus] = useState<"idle" | "checking" | "available" | "taken">("idle");
   const [usernameSuggestions, setUsernameSuggestions] = useState<string[]>([]);
   const [email, setEmail] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [referralCode, setReferralCode] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [audienceType, setAudienceType] = useState<CampusAudienceType>("student");
@@ -49,6 +51,7 @@ const Signup = () => {
   const [isLoading, setIsLoading] = useState(false);
   const { signUp } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { toast } = useToast();
 
   // Password requirements
@@ -61,6 +64,13 @@ const Signup = () => {
   };
 
   const isPasswordValid = Object.values(passwordChecks).every(Boolean);
+
+  useEffect(() => {
+    const incomingReferral = searchParams.get("ref") || searchParams.get("referral");
+    if (incomingReferral) {
+      setReferralCode(incomingReferral.trim().toUpperCase());
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     const fetchInstitutions = async () => {
@@ -160,6 +170,8 @@ const Signup = () => {
       userType: audienceType,
       homeState: audienceType === "student" ? undefined : selectedState?.state,
       homeRegion: audienceType === "student" ? undefined : selectedState?.region,
+      phoneNumber: phoneNumber.trim() || undefined,
+      referralCode: referralCode.trim() || undefined,
     });
 
     if (error) {
@@ -236,7 +248,7 @@ const Signup = () => {
                 <Input
                   id="displayName"
                   type="text"
-                  placeholder="How should we call you?"
+                  placeholder="Your name on CampusHub"
                   value={displayName}
                   onChange={(e) => setDisplayName(e.target.value)}
                   required
@@ -246,7 +258,7 @@ const Signup = () => {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="username">Username</Label>
+                <Label htmlFor="username">Create your username</Label>
                 <Input
                   id="username"
                   type="text"
@@ -287,6 +299,30 @@ const Signup = () => {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="phoneNumber">Phone Number</Label>
+                <Input
+                  id="phoneNumber"
+                  type="tel"
+                  placeholder="+234..."
+                  value={phoneNumber}
+                  onChange={(e) => setPhoneNumber(e.target.value)}
+                  required
+                />
+                <p className="text-xs text-muted-foreground">Used to help friends find you. You can control visibility later.</p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="referralCode">Referral Code</Label>
+                <Input
+                  id="referralCode"
+                  type="text"
+                  placeholder="Optional invite code"
+                  value={referralCode}
+                  onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
                 />
               </div>
 

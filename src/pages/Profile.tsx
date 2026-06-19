@@ -5,7 +5,9 @@ import {
   Award,
   Building,
   Calendar,
+  Copy,
   Edit,
+  Gift,
   GraduationCap,
   Home,
   Mail,
@@ -15,6 +17,7 @@ import {
   TrendingUp,
   User,
 } from "lucide-react";
+import { toast } from "sonner";
 
 import { useAuth } from "@/hooks/useAuth";
 import { getProfileWithUniversity } from "@/lib/campus";
@@ -107,6 +110,19 @@ const Profile = () => {
     if (points >= 100) return "Active Member";
     return "Regular";
   }, [data?.reputationPoints]);
+
+  const referralCode = data?.profile?.referral_code || "";
+  const referralLink = `${window.location.origin}/signup${referralCode ? `?ref=${encodeURIComponent(referralCode)}` : ""}`;
+
+  const copyReferralLink = async () => {
+    if (!referralCode) {
+      toast.error("Referral code is not ready yet.");
+      return;
+    }
+
+    await navigator.clipboard.writeText(referralLink);
+    toast.success("Referral link copied.");
+  };
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
@@ -267,6 +283,23 @@ const Profile = () => {
               <Badge variant="outline" className="capitalize">
                 {data?.profile?.account_status || "active"}
               </Badge>
+            </div>
+            <div className="rounded-lg border border-border/60 bg-muted/30 p-3">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <span className="flex items-center gap-2 text-muted-foreground">
+                  <Gift className="h-4 w-4" />
+                  Referral Code
+                </span>
+                <Badge variant="secondary">{formatCompactNumber(data?.profile?.referral_count ?? 0)} referred</Badge>
+              </div>
+              <div className="flex items-center gap-2">
+                <code className="min-w-0 flex-1 truncate rounded bg-background px-2 py-1 text-xs">
+                  {referralCode || "Generating..."}
+                </code>
+                <Button variant="outline" size="icon" onClick={copyReferralLink} disabled={!referralCode}>
+                  <Copy className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>

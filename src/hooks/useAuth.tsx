@@ -16,6 +16,8 @@ interface AuthContextType {
       homeState?: string;
       homeRegion?: string;
       username?: string;
+      phoneNumber?: string;
+      referralCode?: string;
     },
   ) => Promise<{ error: Error | null }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
@@ -61,6 +63,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       homeState?: string;
       homeRegion?: string;
       username?: string;
+      phoneNumber?: string;
+      referralCode?: string;
     },
   ) => {
     const normalizedEmail = email.trim().toLowerCase();
@@ -77,6 +81,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           user_type: options?.userType,
           home_state: options?.homeState,
           home_region: options?.homeRegion,
+          phone_number: options?.phoneNumber,
+          referral_code: options?.referralCode,
         },
       },
     });
@@ -90,6 +96,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           user_type: options?.userType || "student",
           home_state: options?.homeState || null,
           home_region: options?.homeRegion || null,
+          phone_number: options?.phoneNumber || null,
         })
         .eq("user_id", data.user.id);
     }

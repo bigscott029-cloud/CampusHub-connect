@@ -88,6 +88,7 @@ const EditProfile = () => {
     displayName: "",
     bio: "",
     avatarUrl: "",
+    phoneNumber: "",
     department: "",
     departmentOther: "",
     level: "",
@@ -115,6 +116,7 @@ const EditProfile = () => {
           displayName: profile.display_name || "",
           bio: profile.bio || "",
           avatarUrl: profile.avatar_url || "",
+          phoneNumber: (profile as any).phone_number || "",
           department: profile.department || "",
           departmentOther: "",
           level: profile.level || "",
@@ -190,6 +192,7 @@ const EditProfile = () => {
         display_name: formData.displayName,
         bio: formData.bio || null,
         avatar_url: formData.avatarUrl || null,
+        phone_number: formData.phoneNumber.trim() || null,
         department: finalDepartment || null,
         level: formData.level || null,
         university_id: formData.universityId || null,
@@ -377,6 +380,16 @@ const EditProfile = () => {
                 onChange={(event) => setFormData((prev) => ({ ...prev, bio: event.target.value }))}
                 rows={3}
               />
+            </div>
+            <div>
+              <Label>Phone Number</Label>
+              <Input
+                type="tel"
+                placeholder="+234..."
+                value={formData.phoneNumber}
+                onChange={(event) => setFormData((prev) => ({ ...prev, phoneNumber: event.target.value }))}
+              />
+              <p className="mt-1 text-xs text-muted-foreground">Used for friend discovery when someone searches your number.</p>
             </div>
           </CardContent>
         </Card>

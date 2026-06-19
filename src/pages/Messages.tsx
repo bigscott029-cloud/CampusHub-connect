@@ -11,6 +11,7 @@ import {
   Search,
   Send,
   Smile,
+  UserPlus,
   Users,
   Video,
 } from "lucide-react";
@@ -21,6 +22,13 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -50,6 +58,27 @@ interface MessageView {
   saved_by?: string[] | null;
 }
 
+interface PeopleSearchResult {
+  user_id: string;
+  display_name: string;
+  username: string | null;
+  avatar_url: string | null;
+  friendship_status: string | null;
+  friendship_id: string | null;
+}
+
+interface FriendRequestView {
+  id: string;
+  requester_id: string;
+  addressee_id: string;
+  status: string;
+  created_at: string;
+  requester?: {
+    display_name?: string | null;
+    username?: string | null;
+  };
+}
+
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 const Messages = () => {
@@ -63,6 +92,60 @@ const Messages = () => {
   const [disappearingEnabled, setDisappearingEnabled] = useState(true);
   const [viewOnce, setViewOnce] = useState(false);
   const [chatStyle, setChatStyle] = useState<"whatsapp" | "snapchat" | "telegram">("whatsapp");
+  const [friendDialogOpen, setFriendDialogOpen] = useState(false);
+  const [friendSearch, setFriendSearch] = useState("");
+  const [invitePhone, setInvitePhone] = useState("");
+
+  const currentProfileQuery = useQuery({
+    queryKey: ["message-profile", user?.id],
+    enabled: Boolean(user),
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("profiles")
+        .select("display_name, username, referral_code")
+        .eq("user_id", user?.id)
+        .maybeSingle();
+
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const friendRequestsQuery = useQuery({
+    queryKey: ["friend-requests", user?.id],
+    enabled: Boolean(user),
+    queryFn: async (): Promise<FriendRequestView[]> => {
+      const { data, error } = await (supabase as any)
+        .from("friendships")
+        .select("id, requester_id, addressee_id, status, created_at")
+        .eq("addressee_id", user?.id)
+        .eq("status", "pending")
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+
+      const requesterIds = (data ?? []).map((request: any) => request.requester_id);
+      const { data: profiles } = requesterIds.length
+        ? await (supabase as any).from("profiles").select("user_id, display_name, username").in("user_id", requesterIds)
+        : { data: [] };
+
+      const profileMap = new Map((profiles ?? []).map((profile: any) => [profile.user_id, profile]));
+      return (data ?? []).map((request: any) => ({ ...request, requester: profileMap.get(request.requester_id) }));
+    },
+  });
+
+  const peopleSearchQuery = useQuery({
+    queryKey: ["people-search", user?.id, friendSearch],
+    enabled: Boolean(user) && friendDialogOpen,
+    queryFn: async (): Promise<PeopleSearchResult[]> => {
+      const { data, error } = await (supabase as any).rpc("search_people", {
+        search_term: friendSearch.trim(),
+      });
+
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
 
   const conversationsQuery = useQuery({
     queryKey: ["conversations", user?.id],
@@ -188,6 +271,46 @@ const Messages = () => {
     onError: (error) => toast.error(error.message),
   });
 
+  const sendFriendRequestMutation = useMutation({
+    mutationFn: async (targetUserId: string) => {
+      if (!user) throw new Error("Please sign in first.");
+
+      const { error } = await (supabase as any)
+        .from("friendships")
+        .insert({ requester_id: user.id, addressee_id: targetUserId, status: "pending" });
+
+      if (error) throw error;
+    },
+    onSuccess: async () => {
+      toast.success("Friend request sent.");
+      await peopleSearchQuery.refetch();
+    },
+    onError: (error) => toast.error(error.message),
+  });
+
+  const respondFriendRequestMutation = useMutation({
+    mutationFn: async ({ request, status }: { request: FriendRequestView; status: "accepted" | "rejected" }) => {
+      if (!user) throw new Error("Please sign in first.");
+
+      const { error } = await (supabase as any)
+        .from("friendships")
+        .update({ status, responded_at: new Date().toISOString() })
+        .eq("id", request.id);
+
+      if (error) throw error;
+
+      if (status === "accepted") {
+        await startConversationMutation.mutateAsync({ target: request.requester_id });
+      }
+    },
+    onSuccess: async (_, variables) => {
+      toast.success(variables.status === "accepted" ? "Friend request accepted." : "Friend request declined.");
+      await friendRequestsQuery.refetch();
+      await peopleSearchQuery.refetch();
+    },
+    onError: (error) => toast.error(error.message),
+  });
+
   useEffect(() => {
     const to = searchParams.get("to");
     const message = searchParams.get("message");
@@ -244,6 +367,16 @@ const Messages = () => {
     queryClient.invalidateQueries({ queryKey: ["messages", selectedChat] });
   };
 
+  const referralCode = currentProfileQuery.data?.referral_code || "";
+  const inviteUrl = `${window.location.origin}/signup${referralCode ? `?ref=${encodeURIComponent(referralCode)}` : ""}`;
+  const inviteMessage = `Join me on CampusHub Connect. Use my invite code ${referralCode || "CampusHub"}: ${inviteUrl}`;
+  const inviteTarget = invitePhone.replace(/[^\d+]/g, "");
+  const inviteLinks = {
+    whatsapp: `https://wa.me/${inviteTarget.replace(/^\+/, "")}?text=${encodeURIComponent(inviteMessage)}`,
+    telegram: `https://t.me/share/url?url=${encodeURIComponent(inviteUrl)}&text=${encodeURIComponent(inviteMessage)}`,
+    sms: `sms:${inviteTarget}?&body=${encodeURIComponent(inviteMessage)}`,
+  };
+
   return (
     <div className="flex h-[calc(100vh-8rem)] gap-4">
       <Card className="glass-card flex w-80 shrink-0 flex-col">
@@ -251,14 +384,43 @@ const Messages = () => {
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <h2 className="font-display font-semibold">Messages</h2>
-            <Button variant="ghost" size="icon" onClick={() => toast.info("Open a profile or listing to start a new conversation.")}>
-              <Plus className="h-4 w-4" />
-            </Button>
+            <div className="flex items-center gap-1">
+              <Button variant="ghost" size="icon" onClick={() => setFriendDialogOpen(true)} title="Add friends">
+                <UserPlus className="h-4 w-4" />
+              </Button>
+              <Button variant="ghost" size="icon" onClick={() => setFriendDialogOpen(true)} title="Start a chat">
+                <Plus className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input placeholder="Search conversations..." value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} className="pl-10" />
           </div>
+          {(friendRequestsQuery.data ?? []).length > 0 && (
+            <div className="space-y-2 rounded-lg border border-border/60 bg-muted/30 p-2">
+              <p className="text-xs font-medium text-muted-foreground">Friend Requests</p>
+              {(friendRequestsQuery.data ?? []).slice(0, 3).map((request) => (
+                <div key={request.id} className="flex items-center gap-2">
+                  <Avatar className="h-8 w-8">
+                    <AvatarFallback className="text-xs">{request.requester?.display_name?.charAt(0) || "C"}</AvatarFallback>
+                  </Avatar>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-xs font-medium">{request.requester?.display_name || "Campus Member"}</p>
+                    <p className="truncate text-[11px] text-muted-foreground">@{request.requester?.username || "campushub"}</p>
+                  </div>
+                  <Button
+                    size="sm"
+                    className="h-7 px-2 text-xs"
+                    disabled={respondFriendRequestMutation.isPending}
+                    onClick={() => respondFriendRequestMutation.mutate({ request, status: "accepted" })}
+                  >
+                    Accept
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
         </CardHeader>
         <ScrollArea className="flex-1">
           <div className="px-2">
@@ -358,6 +520,83 @@ const Messages = () => {
           </div>
         )}
       </Card>
+
+      <Dialog open={friendDialogOpen} onOpenChange={setFriendDialogOpen}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Add Friends</DialogTitle>
+            <DialogDescription>Find people by username, display name, or phone number. Accepted friends can start chats right away.</DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Search @username, name, or phone..."
+                value={friendSearch}
+                onChange={(event) => setFriendSearch(event.target.value)}
+                className="pl-10"
+              />
+            </div>
+
+            <div className="space-y-2">
+              {(peopleSearchQuery.data ?? []).map((person) => (
+                <div key={person.user_id} className="flex items-center gap-3 rounded-lg border border-border/60 p-3">
+                  <Avatar>
+                    <AvatarFallback>{person.display_name.charAt(0)}</AvatarFallback>
+                  </Avatar>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">{person.display_name}</p>
+                    <p className="truncate text-xs text-muted-foreground">@{person.username || "campushub"}</p>
+                  </div>
+                  {person.friendship_status === "accepted" ? (
+                    <Button size="sm" onClick={() => { startConversationMutation.mutate({ target: person.user_id }); setFriendDialogOpen(false); }}>
+                      Message
+                    </Button>
+                  ) : person.friendship_status === "pending" ? (
+                    <Badge variant="secondary">Pending</Badge>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={sendFriendRequestMutation.isPending}
+                      onClick={() => sendFriendRequestMutation.mutate(person.user_id)}
+                    >
+                      Add
+                    </Button>
+                  )}
+                </div>
+              ))}
+
+              {!peopleSearchQuery.isLoading && friendSearch.trim() && (peopleSearchQuery.data ?? []).length === 0 && (
+                <div className="rounded-lg border border-border/60 p-4">
+                  <p className="text-sm font-medium">No CampusHub user found.</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Invite them with your referral code and start chatting once they join.</p>
+                  <div className="mt-3 space-y-2">
+                    <Input
+                      type="tel"
+                      placeholder="Friend's phone number"
+                      value={invitePhone}
+                      onChange={(event) => setInvitePhone(event.target.value)}
+                    />
+                    <div className="grid grid-cols-3 gap-2">
+                      <Button asChild variant="outline" size="sm" disabled={!invitePhone.trim()}>
+                        <a href={inviteLinks.whatsapp} target="_blank" rel="noreferrer">WhatsApp</a>
+                      </Button>
+                      <Button asChild variant="outline" size="sm">
+                        <a href={inviteLinks.telegram} target="_blank" rel="noreferrer">Telegram</a>
+                      </Button>
+                      <Button asChild variant="outline" size="sm" disabled={!invitePhone.trim()}>
+                        <a href={inviteLinks.sms}>Messages</a>
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

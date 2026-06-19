@@ -1081,7 +1081,12 @@ export type Database = {
           level: string | null
           matric_number: string | null
           paypal_customer_id: string | null
+          phone_number: string | null
           popularity_points: number
+          referral_code: string | null
+          referral_count: number
+          referred_by: string | null
+          referred_by_code: string | null
           reputation_score: number | null
           show_department: boolean | null
           show_level: boolean | null
@@ -1121,7 +1126,12 @@ export type Database = {
           level?: string | null
           matric_number?: string | null
           paypal_customer_id?: string | null
+          phone_number?: string | null
           popularity_points?: number
+          referral_code?: string | null
+          referral_count?: number
+          referred_by?: string | null
+          referred_by_code?: string | null
           reputation_score?: number | null
           show_department?: boolean | null
           show_level?: boolean | null
@@ -1161,7 +1171,12 @@ export type Database = {
           level?: string | null
           matric_number?: string | null
           paypal_customer_id?: string | null
+          phone_number?: string | null
           popularity_points?: number
+          referral_code?: string | null
+          referral_count?: number
+          referred_by?: string | null
+          referred_by_code?: string | null
           reputation_score?: number | null
           show_department?: boolean | null
           show_level?: boolean | null

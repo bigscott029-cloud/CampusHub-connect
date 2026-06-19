@@ -52,10 +52,44 @@ export function InstitutionCombobox({
   onChange,
 }: InstitutionComboboxProps) {
   const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
   const selectedInstitution = useMemo(
     () => institutions.find((institution) => institution.id === value),
     [institutions, value],
   );
+  const filteredInstitutions = useMemo(() => {
+    const normalizedSearch = search.trim().toLowerCase();
+    const alphabetic = [...institutions].sort((a, b) => a.name.localeCompare(b.name));
+
+    if (!normalizedSearch) {
+      return alphabetic.slice(0, 80);
+    }
+
+    const score = (institution: InstitutionOption) => {
+      const name = institution.name.toLowerCase();
+      const aliases = (institution.aliases || []).map((alias) => alias.toLowerCase());
+      const state = institution.state?.toLowerCase() || "";
+      const region = institution.region?.toLowerCase() || "";
+      const type = typeLabel[institution.institution_type || ""]?.toLowerCase() || "";
+
+      if (name === normalizedSearch || aliases.includes(normalizedSearch)) return 0;
+      if (aliases.some((alias) => alias.startsWith(normalizedSearch))) return 1;
+      if (name.startsWith(normalizedSearch)) return 2;
+      if (name.split(/\s+/).some((word) => word.startsWith(normalizedSearch))) return 3;
+      if (aliases.some((alias) => alias.includes(normalizedSearch))) return 4;
+      if (name.includes(normalizedSearch)) return 5;
+      if (state.startsWith(normalizedSearch) || region.startsWith(normalizedSearch)) return 6;
+      if (type.includes(normalizedSearch)) return 7;
+      return 99;
+    };
+
+    return alphabetic
+      .map((institution) => ({ institution, rank: score(institution) }))
+      .filter((item) => item.rank < 99)
+      .sort((a, b) => a.rank - b.rank || a.institution.name.localeCompare(b.institution.name))
+      .slice(0, 30)
+      .map((item) => item.institution);
+  }, [institutions, search]);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -86,12 +120,16 @@ export function InstitutionCombobox({
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-[min(92vw,520px)] p-0" align="start">
-        <Command>
-          <CommandInput placeholder="Type school, state, region, or institution type..." />
+        <Command shouldFilter={false}>
+          <CommandInput
+            placeholder="Type school name or short form..."
+            value={search}
+            onValueChange={setSearch}
+          />
           <CommandList className="max-h-80">
             <CommandEmpty>No institution found.</CommandEmpty>
-            <CommandGroup>
-              {institutions.map((institution) => {
+            <CommandGroup heading={search.trim() ? "Best matches" : "All institutions"}>
+              {filteredInstitutions.map((institution) => {
                 const label = typeLabel[institution.institution_type || ""] || "Institution";
                 const searchValue = [
                   institution.name,
@@ -108,6 +146,7 @@ export function InstitutionCombobox({
                     value={searchValue}
                     onSelect={() => {
                       onChange(institution.id);
+                      setSearch("");
                       setOpen(false);
                     }}
                     className="items-start gap-3 py-3"
@@ -136,6 +175,11 @@ export function InstitutionCombobox({
                 );
               })}
             </CommandGroup>
+            {!search.trim() && institutions.length > filteredInstitutions.length && (
+              <div className="px-3 py-2 text-xs text-muted-foreground">
+                Showing alphabetically. Type a school name or short form to narrow results.
+              </div>
+            )}
           </CommandList>
         </Command>
       </PopoverContent>
