@@ -191,6 +191,19 @@ const Anonymous = () => {
       return;
     }
     if (!newPost.trim() || !user) return;
+
+    // Session-based anti-spam rate limiting (5 minute cooldown)
+    const lastAnonPost = sessionStorage.getItem("last_anonymous_post_time");
+    if (lastAnonPost) {
+      const elapsedMs = Date.now() - parseInt(lastAnonPost, 10);
+      const cooldownMs = 5 * 60 * 1000;
+      if (elapsedMs < cooldownMs) {
+        const remainingSec = Math.ceil((cooldownMs - elapsedMs) / 1000);
+        toast.error(`Anti-Spam Protection: Please wait ${remainingSec} seconds before posting anonymously again.`);
+        return;
+      }
+    }
+
     setIsPosting(true);
     try {
       const { error } = await supabase.from("anonymous_posts").insert({
@@ -203,6 +216,7 @@ const Anonymous = () => {
 
       if (error) throw error;
 
+      sessionStorage.setItem("last_anonymous_post_time", Date.now().toString());
       await loadPosts(currentUniversityId);
       toast.success("Posted anonymously!");
       setNewPost("");

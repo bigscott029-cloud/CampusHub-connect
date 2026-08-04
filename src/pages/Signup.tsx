@@ -18,6 +18,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { getNigeriaStateOption, nigeriaStates, type CampusAudienceType } from "@/lib/nigeria";
 
 const normalizeUsername = (value: string) =>
@@ -49,10 +56,56 @@ const Signup = () => {
   const [institutions, setInstitutions] = useState<InstitutionOption[]>([]);
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [showVerificationModal, setShowVerificationModal] = useState(false);
+  const [otpCode, setOtpCode] = useState("");
+  const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
   const { signUp } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
+
+  const handleVerifyOtp = async () => {
+    if (!otpCode.trim()) {
+      toast({
+        title: "OTP Required",
+        description: "Please enter the 6-digit code sent to your email.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsVerifyingOtp(true);
+
+    try {
+      const { error } = await supabase.auth.verifyOtp({
+        email,
+        token: otpCode.trim(),
+        type: "signup",
+      });
+
+      if (error) {
+        toast({
+          title: "Verification Failed",
+          description: error.message || "Invalid OTP code. Please check your email or proceed to sign in.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Account Verified Successfully! 🎉",
+          description: "Your registration is complete. You can now sign in.",
+        });
+        setShowVerificationModal(false);
+        navigate("/login?verified=true");
+      }
+    } catch {
+      toast({
+        title: "Verification Error",
+        description: "Could not verify code automatically. Please proceed to the login page.",
+      });
+    } finally {
+      setIsVerifyingOtp(false);
+    }
+  };
 
   // Password requirements
   const passwordChecks = {
@@ -181,12 +234,11 @@ const Signup = () => {
         variant: "destructive",
       });
     } else {
-      // Update profile with university after signup
+      setShowVerificationModal(true);
       toast({
-        title: "Registration successful",
-        description: "Check your email to verify your account, then sign in.",
+        title: "Registration successful! 🎉",
+        description: "Please check your email for your 6-digit verification OTP.",
       });
-      navigate("/login?signup=check-email");
     }
 
     setIsLoading(false);
@@ -472,6 +524,64 @@ const Signup = () => {
           </CardContent>
         </Card>
       </div>
+
+      {/* Account Registration Verification & OTP Dialog */}
+      <Dialog open={showVerificationModal} onOpenChange={setShowVerificationModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-display flex items-center gap-2">
+              🎉 Registration Successful!
+            </DialogTitle>
+            <DialogDescription className="mt-2 text-sm">
+              We have sent a 6-digit verification code and email link to <span className="font-semibold text-primary">{email}</span>.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="otp">Enter 6-Digit OTP Code</Label>
+              <Input
+                id="otp"
+                placeholder="e.g. 123456"
+                value={otpCode}
+                onChange={(e) => setOtpCode(e.target.value)}
+                maxLength={6}
+                className="text-center font-mono text-lg tracking-widest"
+              />
+            </div>
+
+            <Button
+              onClick={handleVerifyOtp}
+              variant="hero"
+              className="w-full"
+              disabled={isVerifyingOtp || !otpCode.trim()}
+            >
+              {isVerifyingOtp ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Verifying OTP...
+                </>
+              ) : (
+                "Verify OTP & Sign In"
+              )}
+            </Button>
+
+            <div className="text-center pt-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setShowVerificationModal(false);
+                  navigate("/login?signup=check-email");
+                }}
+                className="text-xs text-muted-foreground hover:text-foreground"
+              >
+                Proceed to Login Page (Click Email Link Instead)
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

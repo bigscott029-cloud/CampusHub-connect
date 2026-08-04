@@ -671,8 +671,13 @@ const AdminPanel = () => {
             <Shield className="w-5 h-5 text-primary" />
           </div>
           <div>
-            <h1 className="text-2xl font-display font-bold">Admin Panel</h1>
-            <p className="text-sm text-muted-foreground">Welcome, {adminUsername}</p>
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-display font-bold">Admin CMS Panel</h1>
+              <Badge variant="default" className="bg-amber-500/20 text-amber-500 border-amber-500/40">
+                Main Admin Privileges
+              </Badge>
+            </div>
+            <p className="text-sm text-muted-foreground">Logged in as: {adminUsername} • Elevated System Management</p>
           </div>
         </div>
         <Button variant="outline" size="sm" onClick={handleLogout}>
@@ -681,32 +686,53 @@ const AdminPanel = () => {
         </Button>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card className="glass-card">
-          <CardContent className="pt-6 text-center">
-            <p className="text-3xl font-bold text-primary">{hostelRequests.length}</p>
-            <p className="text-sm text-muted-foreground">Hostel Listings</p>
+      {/* Admin Privilege Distinction Info Banner */}
+      <Card className="glass-card border-primary/20 bg-primary/5">
+        <CardContent className="py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-primary/10 text-primary">
+              <Shield className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold">Access Level: Main Admin Control Panel</p>
+              <p className="text-xs text-muted-foreground">
+                Main Admin has full override access (Ad creation, fee verification, user promotion, sub-admin delegation). Standard users & sub-admins have restricted scopes.
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Categorized Executive KPI Counters */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+        <Card className="glass-card border-amber-500/30 bg-amber-500/5">
+          <CardContent className="pt-4 pb-4 text-center">
+            <p className="text-2xl font-bold text-amber-500">{hostelRequests.length + roommateRequests.length + marketplaceRequests.length}</p>
+            <p className="text-xs text-muted-foreground font-medium mt-1">Pending Listings</p>
           </CardContent>
         </Card>
-        <Card className="glass-card">
-          <CardContent className="pt-6 text-center">
-            <p className="text-3xl font-bold text-primary">{roommateRequests.length}</p>
-            <p className="text-sm text-muted-foreground">Roommate Requests</p>
+        <Card className="glass-card border-emerald-500/30 bg-emerald-500/5">
+          <CardContent className="pt-4 pb-4 text-center">
+            <p className="text-2xl font-bold text-emerald-500">{agentRequests.length}</p>
+            <p className="text-xs text-muted-foreground font-medium mt-1">Agent Verification ₦20k</p>
           </CardContent>
         </Card>
-        <Card className="glass-card">
-          <CardContent className="pt-6 text-center">
-            <p className="text-3xl font-bold text-primary">{marketplaceRequests.length}</p>
-            <p className="text-sm text-muted-foreground">Marketplace Posts</p>
+        <Card className="glass-card border-sky-500/30 bg-sky-500/5">
+          <CardContent className="pt-4 pb-4 text-center">
+            <p className="text-2xl font-bold text-sky-500">{ads.filter((a) => a.status === "active").length}</p>
+            <p className="text-xs text-muted-foreground font-medium mt-1">Active Ad Campaigns</p>
           </CardContent>
         </Card>
-        <Card className="glass-card">
-          <CardContent className="pt-6 text-center">
-        <p className="text-3xl font-bold text-accent">
-              {hostelRequests.length + roommateRequests.length + marketplaceRequests.length + anonymousReports.length + studentVerificationRequests.length + agentRequests.length}
-            </p>
-            <p className="text-sm text-muted-foreground">Total Pending</p>
+        <Card className="glass-card border-purple-500/30 bg-purple-500/5">
+          <CardContent className="pt-4 pb-4 text-center">
+            <p className="text-2xl font-bold text-purple-500">{studentVerificationRequests.length}</p>
+            <p className="text-xs text-muted-foreground font-medium mt-1">Student Verifications</p>
+          </CardContent>
+        </Card>
+        <Card className="glass-card border-destructive/30 bg-destructive/5 col-span-2 sm:col-span-1">
+          <CardContent className="pt-4 pb-4 text-center">
+            <p className="text-2xl font-bold text-destructive">{anonymousReports.length}</p>
+            <p className="text-xs text-muted-foreground font-medium mt-1">Flagged Reports</p>
           </CardContent>
         </Card>
       </div>

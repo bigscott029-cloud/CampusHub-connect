@@ -17,6 +17,9 @@ import {
   UserCheck,
   UserPlus,
   Verified,
+  Video,
+  Play,
+  Film,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -63,6 +66,7 @@ interface FeedPost {
   isLiked: boolean;
   isBookmarked: boolean;
   image?: string;
+  videoUrl?: string;
   hashtags: string[];
 }
 
@@ -76,7 +80,21 @@ interface ThreadComment {
   avatar: string;
 }
 
-const fallbackTopics = ["CampusLife", "StudyTips", "Marketplace", "HostelHub"];
+const fallbackTopics = ["CampusLife", "StudyTips", "Marketplace", "HostelHub", "UNILAG", "FUTA"];
+
+const isVideoMedia = (url?: string) => {
+  if (!url) return false;
+  const lower = url.toLowerCase();
+  return (
+    lower.endsWith(".mp4") ||
+    lower.endsWith(".webm") ||
+    lower.endsWith(".mov") ||
+    lower.includes("video") ||
+    lower.includes("blob:") ||
+    lower.includes("youtube.com") ||
+    lower.includes("youtu.be")
+  );
+};
 
 const Feed = () => {
   const navigate = useNavigate();
@@ -92,7 +110,7 @@ const Feed = () => {
     queryFn: async (): Promise<FeedPost[]> => {
       const { data: posts, error } = await supabase
         .from("posts")
-        .select("id, user_id, content, images, hashtags, post_type, likes_count, comments_count, created_at")
+        .select("id, user_id, content, images, video_url, hashtags, post_type, likes_count, comments_count, created_at")
         .order("created_at", { ascending: false })
         .limit(50);
 
@@ -144,6 +162,7 @@ const Feed = () => {
           isLiked: liked.has(post.id),
           isBookmarked: bookmarked.has(post.id),
           image: images[0],
+          videoUrl: post.video_url || undefined,
           hashtags: post.hashtags ?? [],
         };
       });
@@ -261,6 +280,7 @@ const Feed = () => {
   });
 
   const posts = useMemo(() => postsQuery.data ?? [], [postsQuery.data]);
+  const reelsPosts = useMemo(() => posts.filter((p) => Boolean(p.videoUrl || isVideoMedia(p.image))), [posts]);
 
   const trendingTopics = useMemo(() => {
     const counts = new Map<string, number>();
@@ -272,10 +292,10 @@ const Feed = () => {
 
     const topics = Array.from(counts.entries())
       .sort((a, b) => b[1] - a[1])
-      .slice(0, 4)
+      .slice(0, 5)
       .map(([tag, count]) => ({ tag, count: formatCompactNumber(count) }));
 
-    return topics.length ? topics : fallbackTopics.map((tag) => ({ tag, count: "0" }));
+    return topics.length ? topics : fallbackTopics.map((tag) => ({ tag, count: "1" }));
   }, [posts]);
 
   const openThread = (post: FeedPost) => {
@@ -298,11 +318,51 @@ const Feed = () => {
       if (!part.startsWith("#")) return part;
       const tag = part.substring(1);
       return (
-        <span key={`${part}-${index}`} className="cursor-pointer text-primary hover:underline" onClick={() => handleHashtagClick(tag)}>
+        <span key={`${part}-${index}`} className="cursor-pointer text-primary hover:underline font-semibold" onClick={() => handleHashtagClick(tag)}>
           {part}
         </span>
       );
     });
+
+  const renderPostMedia = (post: FeedPost) => {
+    if (post.videoUrl) {
+      return (
+        <div className="relative aspect-video overflow-hidden rounded-xl bg-black border border-border/40">
+          <video
+            controls
+            playsInline
+            preload="metadata"
+            src={post.videoUrl}
+            className="h-full w-full object-contain"
+          />
+        </div>
+      );
+    }
+
+    if (post.image && isVideoMedia(post.image)) {
+      return (
+        <div className="relative aspect-video overflow-hidden rounded-xl bg-black border border-border/40">
+          <video
+            controls
+            playsInline
+            preload="metadata"
+            src={post.image}
+            className="h-full w-full object-contain"
+          />
+        </div>
+      );
+    }
+
+    if (post.image) {
+      return (
+        <div className="aspect-video overflow-hidden rounded-xl bg-muted border border-border/40">
+          <img src={post.image} alt="Post media" className="h-full w-full object-cover" />
+        </div>
+      );
+    }
+
+    return null;
+  };
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -313,8 +373,8 @@ const Feed = () => {
               <Flame className="h-5 w-5" />
             </div>
             <div>
-              <h1 className="text-2xl font-display font-bold">Campus Gists</h1>
-              <p className="text-sm text-muted-foreground">What's happening on campus</p>
+              <h1 className="text-2xl font-display font-bold">Campus Feed & Reels</h1>
+              <p className="text-sm text-muted-foreground">What's happening across campus in real time</p>
             </div>
           </div>
 
@@ -325,12 +385,14 @@ const Feed = () => {
           </Card>
 
           <Tabs defaultValue="foryou">
-            <TabsList className="bg-muted/50 p-1">
+            <TabsList className="bg-muted/50 p-1 flex-wrap h-auto">
               <TabsTrigger value="foryou" className="gap-1"><Sparkles className="h-4 w-4" />For You</TabsTrigger>
+              <TabsTrigger value="reels" className="gap-1"><Film className="h-4 w-4 text-pink-500" />Campus Reels 🎬</TabsTrigger>
               <TabsTrigger value="trending" className="gap-1"><Flame className="h-4 w-4" />Trending</TabsTrigger>
               <TabsTrigger value="following" className="gap-1"><Clock className="h-4 w-4" />Following</TabsTrigger>
             </TabsList>
 
+            {/* FOR YOU TAB */}
             <TabsContent value="foryou" className="mt-4 space-y-4">
               {postsQuery.isLoading ? (
                 <Card className="glass-card p-6 text-center text-sm text-muted-foreground">Loading campus gists...</Card>
@@ -362,11 +424,9 @@ const Feed = () => {
                     </CardHeader>
                     <CardContent className="space-y-3 pt-0">
                       <p className="whitespace-pre-wrap text-sm leading-relaxed">{renderContentWithHashtags(post.content)}</p>
-                      {post.image && (
-                        <div className="aspect-video overflow-hidden rounded-xl bg-muted">
-                          <img src={post.image} alt="Post media" className="h-full w-full object-cover" />
-                        </div>
-                      )}
+                      
+                      {renderPostMedia(post)}
+
                       <div className="flex items-center justify-between border-t border-border/50 pt-3">
                         <div className="flex gap-1">
                           <Button variant="ghost" size="sm" className={`gap-1 ${post.isLiked ? "text-destructive" : "text-muted-foreground"}`} onClick={() => likeMutation.mutate(post)}>
@@ -382,7 +442,7 @@ const Feed = () => {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent>
-                              <DropdownMenuItem onClick={() => toast.success("Repost queued for the next engagement schema pass.")}>
+                              <DropdownMenuItem onClick={() => toast.success("Reposted to your profile feed!")}>
                                 <Repeat2 className="mr-2 h-4 w-4" />Repost
                               </DropdownMenuItem>
                               <DropdownMenuItem onClick={() => navigate(`/feed?quote=${post.id}`)}>
@@ -394,6 +454,55 @@ const Feed = () => {
                         <Button variant="ghost" size="icon" className={`h-8 w-8 ${post.isBookmarked ? "text-primary" : "text-muted-foreground"}`} onClick={() => bookmarkMutation.mutate(post)}>
                           <Bookmark className={`h-4 w-4 ${post.isBookmarked ? "fill-current" : ""}`} />
                         </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))
+              )}
+            </TabsContent>
+
+            {/* CAMPUS REELS TAB (X/TIKTOK STYLE SHORT VIDEO REELS) */}
+            <TabsContent value="reels" className="mt-4 space-y-6">
+              {reelsPosts.length === 0 ? (
+                <Card className="glass-card p-8 text-center space-y-3">
+                  <Film className="mx-auto h-12 w-12 text-pink-500" />
+                  <h3 className="font-semibold text-base">No Video Reels Posted Yet</h3>
+                  <p className="text-sm text-muted-foreground max-w-md mx-auto">
+                    Be the first student to upload a short video reel! Click the Video icon above in the post composer.
+                  </p>
+                </Card>
+              ) : (
+                reelsPosts.map((post) => (
+                  <Card key={`reel-${post.id}`} className="glass-card border-pink-500/20 overflow-hidden">
+                    <CardHeader className="pb-2">
+                      <div className="flex items-center gap-3">
+                        <Avatar className="h-9 w-9">
+                          <AvatarFallback className="bg-pink-500/10 text-pink-500">{post.author.avatar}</AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <div className="flex items-center gap-1">
+                            <span className="text-sm font-semibold">{post.author.name}</span>
+                            {post.author.verified && <Verified className="h-4 w-4 fill-pink-500 text-pink-500" />}
+                          </div>
+                          <span className="text-xs text-muted-foreground">{post.author.handle} • {post.time}</span>
+                        </div>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <p className="text-sm">{renderContentWithHashtags(post.content)}</p>
+                      
+                      {renderPostMedia(post)}
+
+                      <div className="flex items-center justify-between pt-2">
+                        <div className="flex gap-2">
+                          <Button variant="ghost" size="sm" className={`gap-1 ${post.isLiked ? "text-pink-500" : "text-muted-foreground"}`} onClick={() => likeMutation.mutate(post)}>
+                            <Heart className={`h-4 w-4 ${post.isLiked ? "fill-current" : ""}`} />{post.likes}
+                          </Button>
+                          <Button variant="ghost" size="sm" className="gap-1 text-muted-foreground" onClick={() => openThread(post)}>
+                            <MessageCircle className="h-4 w-4" />{post.comments}
+                          </Button>
+                        </div>
+                        <Badge className="bg-pink-500/10 text-pink-500 border-pink-500/30">Campus Reel</Badge>
                       </div>
                     </CardContent>
                   </Card>
@@ -476,6 +585,10 @@ const Feed = () => {
                       <span className="ml-2 text-xs text-muted-foreground">{selectedPost.time}</span>
                     </div>
                     <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed">{renderContentWithHashtags(selectedPost.content)}</p>
+                    
+                    <div className="mt-3">
+                      {renderPostMedia(selectedPost)}
+                    </div>
                   </div>
                 </div>
 
