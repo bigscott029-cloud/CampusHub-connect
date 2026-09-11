@@ -1,0 +1,78 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 222 47% 7%;
+    --foreground: 210 40% 98%;
+    --primary: 54 100% 50%;
+    --primary-foreground: 222 47% 7%;
+    --secondary: 217 33% 17%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217 33% 14%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 217 33% 17%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217 33% 18%;
+    --input: 217 33% 18%;
+    --ring: 54 100% 50%;
+    --radius: 1rem;
+  }
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+  user-select: none;
+  -webkit-user-select: none;
+  background-color: #0b0f19;
+  color: #f8fafc;
+  margin: 0;
+  padding: 0;
+  overscroll-behavior-y: none;
+}
+
+/* Custom Safe Area Padding for iOS & Edge-to-Edge Android */
+.pt-safe {
+  padding-top: max(1rem, env(safe-area-inset-top));
+}
+
+.pb-safe {
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+}
+
+.mb-safe {
+  margin-bottom: max(1rem, env(safe-area-inset-bottom));
+}
+
+/* Glassmorphism Effect */
+.glass-panel {
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.glass-dock {
+  background: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.4);
+}
+
+/* Hide Scrollbar for clean mobile feel */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
