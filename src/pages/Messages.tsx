@@ -14,15 +14,24 @@ import {
   UserPlus,
   Users,
   Video,
-  Radio,
   Share2,
   CheckCheck,
   ShieldCheck,
   Sparkles,
   UserCheck,
-  Circle,
+  ArrowLeft,
+  Info,
+  Ban,
+  UserX,
+  Flag,
+  Radio,
   ExternalLink,
   Flame,
+  MessageSquarePlus,
+  GraduationCap,
+  Building,
+  BellOff,
+  Check,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -35,6 +44,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -54,6 +64,9 @@ interface ConversationView {
   name: string;
   handle: string;
   userType?: string;
+  avatarUrl?: string | null;
+  bio?: string | null;
+  universityName?: string | null;
   lastMessage: string;
   time: string;
   unread: number;
@@ -80,13 +93,6 @@ interface PeopleSearchResult {
   friendship_id: string | null;
 }
 
-const telegramCampusChannels = [
-  { id: "chan-1", name: "🔥 UNILAG Gists & Gossip", handle: "@unilag_gists", subscribers: "4.2k members", category: "Gists", link: "https://t.me/unilaggists" },
-  { id: "chan-2", name: "🏠 Campus Hostel Alerts", handle: "@hostel_connect", subscribers: "3.1k members", category: "Housing", link: "https://t.me/campushostels" },
-  { id: "chan-3", name: "🛍️ Marketplace Flash Deals", handle: "@campus_deals", subscribers: "5.8k members", category: "Market", link: "https://t.me/campusdeals" },
-  { id: "chan-4", name: "📚 Academic Circles & Exams", handle: "@academic_hub", subscribers: "2.7k members", category: "Study", link: "https://t.me/academic_circles" },
-];
-
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 const Messages = () => {
@@ -94,16 +100,37 @@ const Messages = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<"chats" | "channels" | "directory">("chats");
+  const [activeTab, setActiveTab] = useState<"chats" | "directory" | "communities">("chats");
   const [selectedChat, setSelectedChat] = useState<string | null>(null);
   const [newMessage, setNewMessage] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [disappearingEnabled, setDisappearingEnabled] = useState(false);
   const [viewOnce, setViewOnce] = useState(false);
-  const [chatStyle, setChatStyle] = useState<"telegram" | "whatsapp" | "snapchat">("telegram");
-  const [friendDialogOpen, setFriendDialogOpen] = useState(false);
-  const [friendSearch, setFriendSearch] = useState("");
+  const [chatStyle, setChatStyle] = useState<"telegram" | "whatsapp" | "snapchat">("whatsapp");
+  const [newChatDialogOpen, setNewChatDialogOpen] = useState(false);
+  const [userSearchTerm, setUserSearchTerm] = useState("");
+  const [profileModalOpen, setProfileModalOpen] = useState(false);
+
+  // Blocked users set stored locally for rapid privacy enforcement
+  const [blockedUsers, setBlockedUsers] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem(`campushub_blocked_users:${user?.id}`);
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  // Following list
+  const [followingUsers, setFollowingUsers] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem(`campushub_following:${user?.id}`);
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
 
   const currentProfileQuery = useQuery({
     queryKey: ["message-profile", user?.id],
@@ -120,15 +147,46 @@ const Messages = () => {
     },
   });
 
+  // Query live platform members for user search / lookup
   const peopleSearchQuery = useQuery({
-    queryKey: ["people-search", user?.id, friendSearch],
-    enabled: Boolean(user) && (friendDialogOpen || activeTab === "directory"),
+    queryKey: ["people-search", user?.id, userSearchTerm, searchQuery],
+    enabled: Boolean(user) && (newChatDialogOpen || activeTab === "directory" || searchQuery.trim().length > 1),
     queryFn: async (): Promise<PeopleSearchResult[]> => {
+      const term = (userSearchTerm.trim() || searchQuery.trim()).replace(/^@/, "");
+      if (!term) {
+        // Return latest active students
+        const { data, error } = await (supabase as any)
+          .from("profiles")
+          .select("user_id, display_name, username, avatar_url, user_type")
+          .neq("user_id", user?.id)
+          .limit(15);
+        if (error) throw error;
+        return (data ?? []).map((p: any) => ({
+          ...p,
+          friendship_status: null,
+          friendship_id: null,
+        }));
+      }
+
       const { data, error } = await (supabase as any).rpc("search_people", {
-        search_term: friendSearch.trim() || searchQuery.trim(),
+        search_term: term,
       });
 
-      if (error) throw error;
+      if (error) {
+        // Fallback to direct profiles search
+        const { data: fallbackData } = await (supabase as any)
+          .from("profiles")
+          .select("user_id, display_name, username, avatar_url, user_type")
+          .neq("user_id", user?.id)
+          .or(`display_name.ilike.%${term}%,username.ilike.%${term}%`)
+          .limit(15);
+        return (fallbackData ?? []).map((p: any) => ({
+          ...p,
+          friendship_status: null,
+          friendship_id: null,
+        }));
+      }
+
       return data ?? [];
     },
   });
@@ -151,7 +209,10 @@ const Messages = () => {
 
       const [{ data: profiles }, { data: latestMessages }] = await Promise.all([
         otherUserIds.length
-          ? (supabase as any).from("profiles").select("user_id, display_name, username, user_type").in("user_id", otherUserIds)
+          ? (supabase as any)
+              .from("profiles")
+              .select("user_id, display_name, username, user_type, avatar_url, bio, university_id")
+              .in("user_id", otherUserIds)
           : Promise.resolve({ data: [] }),
         conversationIds.length
           ? supabase
@@ -180,6 +241,9 @@ const Messages = () => {
           name,
           handle: `@${profile?.username || name.toLowerCase().replace(/[^a-z0-9]+/g, "").slice(0, 15)}`,
           userType: profile?.user_type || "student",
+          avatarUrl: profile?.avatar_url || null,
+          bio: profile?.bio || "CampusHub student and community member.",
+          universityName: profile?.university_id ? "Verified Campus Member" : "Campus Community",
           lastMessage: latest?.content || "Tap to start conversation",
           time: latest?.created_at ? formatRelativeTime(latest.created_at) : "New",
           unread: 0,
@@ -273,6 +337,11 @@ const Messages = () => {
     mutationFn: async () => {
       if (!user || !selectedChat || !newMessage.trim()) return;
 
+      const otherUserId = selectedConversation?.otherUserId;
+      if (otherUserId && blockedUsers.includes(otherUserId)) {
+        throw new Error("You have blocked this user. Unblock them first to send messages.");
+      }
+
       const { error } = await supabase.from("messages").insert({
         conversation_id: selectedChat,
         sender_id: user.id,
@@ -294,10 +363,52 @@ const Messages = () => {
     onError: (error) => toast.error(error.message),
   });
 
+  const toggleBlockUser = (userId: string) => {
+    if (!user) return;
+    const isCurrentlyBlocked = blockedUsers.includes(userId);
+    let updated: string[];
+    if (isCurrentlyBlocked) {
+      updated = blockedUsers.filter((id) => id !== userId);
+      toast.success("User unblocked. You can now chat together.");
+    } else {
+      updated = [...blockedUsers, userId];
+      toast.warning("User blocked. They cannot message you or view your active status.");
+    }
+    setBlockedUsers(updated);
+    try {
+      localStorage.setItem(`campushub_blocked_users:${user.id}`, JSON.stringify(updated));
+    } catch {}
+  };
+
+  const toggleFollowUser = (userId: string) => {
+    if (!user) return;
+    const isFollowed = followingUsers.includes(userId);
+    let updated: string[];
+    if (isFollowed) {
+      updated = followingUsers.filter((id) => id !== userId);
+      toast.info("Removed from your friends / following list.");
+    } else {
+      updated = [...followingUsers, userId];
+      toast.success("Added to your campus friends list!");
+    }
+    setFollowingUsers(updated);
+    try {
+      localStorage.setItem(`campushub_following:${user.id}`, JSON.stringify(updated));
+    } catch {}
+  };
+
   const conversations = useMemo(() => conversationsQuery.data ?? [], [conversationsQuery.data]);
   const selectedConversation = conversations.find((conversation) => conversation.id === selectedChat);
+  const isOtherUserBlocked = Boolean(selectedConversation && blockedUsers.includes(selectedConversation.otherUserId));
+  const isOtherUserFriend = Boolean(selectedConversation && followingUsers.includes(selectedConversation.otherUserId));
+
   const filteredConversations = useMemo(
-    () => conversations.filter((conversation) => conversation.name.toLowerCase().includes(searchQuery.toLowerCase()) || conversation.handle.toLowerCase().includes(searchQuery.toLowerCase())),
+    () =>
+      conversations.filter(
+        (conversation) =>
+          conversation.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          conversation.handle.toLowerCase().includes(searchQuery.toLowerCase()),
+      ),
     [conversations, searchQuery],
   );
 
@@ -309,11 +420,19 @@ const Messages = () => {
   };
 
   return (
-    <div className="flex h-[calc(100vh-7.5rem)] gap-4">
-      {/* LEFT SIDEBAR: STYLISH TELEGRAM+WHATSAPP HYBRID MESSAGING HUB */}
-      <Card className="glass-card flex w-80 md:w-96 shrink-0 flex-col overflow-hidden border-primary/20">
-        {/* Campus Status / Stories Carousel Header */}
-        <StoriesCarousel />
+    <div className="relative flex h-[calc(100dvh-5.5rem)] md:h-[calc(100vh-7.5rem)] gap-4 overflow-hidden">
+      {/* LEFT SIDEBAR: CONVERSATION LIST (Full width on mobile when no chat is active) */}
+      <Card
+        className={`glass-card shrink-0 flex-col overflow-hidden border-primary/20 w-full md:w-96 ${
+          selectedChat ? "hidden md:flex" : "flex"
+        }`}
+      >
+        {/* Campus Status / Stories Carousel Header with story reply wiring */}
+        <StoriesCarousel
+          onSelectUserForChat={(userId, initialMessage) => {
+            startConversationMutation.mutate({ target: userId, prefill: initialMessage });
+          }}
+        />
 
         <CardHeader className="pb-3 border-b border-border/50 bg-muted/20">
           <div className="flex items-center justify-between">
@@ -321,198 +440,372 @@ const Messages = () => {
               <h2 className="font-display font-bold text-lg flex items-center gap-1.5">
                 <MessageCircle className="w-5 h-5 text-primary" /> CampusHub DM
               </h2>
-              <p className="text-xs text-muted-foreground">Telegram + WhatsApp Campus Space</p>
+              <p className="text-xs text-muted-foreground">Encrypted Student & Vendor Chat</p>
             </div>
-            <div className="flex items-center gap-1">
-              <Button variant="ghost" size="icon" onClick={() => setFriendDialogOpen(true)} title="Add Friend / Search Handle">
-                <UserPlus className="h-4 w-4" />
+            <div className="flex items-center gap-1.5">
+              <Button
+                variant="hero"
+                size="sm"
+                className="h-8 gap-1 text-xs px-2.5 shadow-sm"
+                onClick={() => setNewChatDialogOpen(true)}
+                title="Start a new chat with any student"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                <span>New Chat</span>
               </Button>
             </div>
           </div>
 
+          {/* SEARCH BAR */}
           <div className="relative mt-3">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="Search @username, chats, or channels..."
+              placeholder="Search @username, student, or messages..."
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
-              className="pl-10 text-xs bg-card"
+              className="pl-10 text-xs bg-card h-9"
             />
           </div>
 
-          {/* MODE TABS (CHATS / CHANNELS / DIRECTORY) */}
+          {/* NAVIGATION TABS (CHATS / DIRECTORY / COMMUNITIES) */}
           <div className="pt-2">
             <Tabs value={activeTab} onValueChange={(val: any) => setActiveTab(val)}>
               <TabsList className="w-full grid grid-cols-3 bg-muted/60 p-1">
-                <TabsTrigger value="chats" className="text-xs font-semibold">Chats</TabsTrigger>
-                <TabsTrigger value="channels" className="text-xs font-semibold flex items-center gap-1">
-                  <Radio className="w-3 h-3 text-sky-500" /> Channels
+                <TabsTrigger value="chats" className="text-xs font-semibold">
+                  Chats ({conversations.length})
                 </TabsTrigger>
-                <TabsTrigger value="directory" className="text-xs font-semibold">Directory</TabsTrigger>
+                <TabsTrigger value="directory" className="text-xs font-semibold flex items-center gap-1">
+                  <Search className="w-3 h-3 text-primary" /> Lookup
+                </TabsTrigger>
+                <TabsTrigger value="communities" className="text-xs font-semibold flex items-center gap-1">
+                  <Radio className="w-3 h-3 text-sky-500" /> Groups
+                </TabsTrigger>
               </TabsList>
             </Tabs>
           </div>
         </CardHeader>
 
         {/* LEFT TAB CONTENTS */}
-        <ScrollArea className="flex-1">
+        <ScrollArea className="flex-1 pb-16 md:pb-0">
           <div className="p-2 space-y-1">
             {/* CHATS TAB */}
             {activeTab === "chats" && (
-              filteredConversations.length === 0 ? (
-                <div className="p-6 text-center text-sm text-muted-foreground">
-                  <p>No active conversations yet.</p>
-                  <Button size="sm" variant="outline" className="mt-2" onClick={() => setFriendDialogOpen(true)}>
-                    <UserPlus className="w-4 h-4 mr-1" /> Find Campus Members
-                  </Button>
-                </div>
-              ) : (
-                filteredConversations.map((conversation) => (
-                  <button
-                    key={conversation.id}
-                    onClick={() => setSelectedChat(conversation.id)}
-                    className={`flex w-full items-center gap-3 rounded-xl p-3 transition-all hover:bg-muted/70 ${selectedChat === conversation.id ? "bg-primary/10 border border-primary/30" : ""}`}
-                  >
-                    <div className="relative">
-                      <Avatar className="h-11 w-11 border border-border">
-                        <AvatarFallback className="bg-primary/10 text-primary font-bold">{conversation.name.charAt(0)}</AvatarFallback>
-                      </Avatar>
-                      <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 rounded-full border-2 border-background" />
-                    </div>
-
-                    <div className="min-w-0 flex-1 text-left">
-                      <div className="flex items-center justify-between">
-                        <p className="truncate text-sm font-semibold">{conversation.name}</p>
-                        <span className="text-[11px] text-muted-foreground">{conversation.time}</span>
-                      </div>
-                      <div className="flex items-center justify-between mt-0.5">
-                        <p className="truncate text-xs text-muted-foreground max-w-[160px]">{conversation.lastMessage}</p>
-                        <Badge variant="outline" className="text-[10px] py-0 px-1.5 uppercase font-mono">
-                          {conversation.userType === "agent_trader" ? "Vendor" : "Student"}
-                        </Badge>
-                      </div>
-                    </div>
-                  </button>
-                ))
-              )
-            )}
-
-            {/* TELEGRAM CHANNELS TAB */}
-            {activeTab === "channels" && (
-              <div className="space-y-3 p-1">
-                <div className="p-2.5 rounded-lg bg-sky-500/10 border border-sky-500/20 text-xs text-sky-700 dark:text-sky-300">
-                  <p className="font-semibold flex items-center gap-1"><Radio className="w-3.5 h-3.5" /> Broadcast Channels</p>
-                  <p className="mt-0.5">Join official campus hubs for fast announcements and deals.</p>
-                </div>
-                {telegramCampusChannels.map((channel) => (
-                  <div key={channel.id} className="p-3 rounded-xl border border-border/60 bg-card space-y-2">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <p className="font-semibold text-sm">{channel.name}</p>
-                        <p className="text-xs text-muted-foreground">{channel.handle} • {channel.subscribers}</p>
-                      </div>
-                      <Badge variant="secondary" className="text-[10px]">{channel.category}</Badge>
-                    </div>
-                    <Button asChild size="sm" variant="outline" className="w-full text-xs gap-1 text-sky-600 dark:text-sky-400">
-                      <a href={channel.link} target="_blank" rel="noreferrer">
-                        <ExternalLink className="w-3.5 h-3.5" /> Open Telegram Channel
-                      </a>
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* DIRECTORY TAB */}
-            {activeTab === "directory" && (
-              <div className="space-y-2 p-1">
-                <p className="text-xs text-muted-foreground px-2 font-medium">Platform Campus Members</p>
-                {(peopleSearchQuery.data ?? []).map((person) => (
-                  <div key={person.user_id} className="p-2.5 rounded-xl border border-border/60 bg-card flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <Avatar className="h-9 w-9">
-                        <AvatarFallback className="bg-primary/10 text-xs text-primary">{person.display_name.charAt(0)}</AvatarFallback>
-                      </Avatar>
-                      <div className="min-w-0">
-                        <p className="text-xs font-semibold truncate">{person.display_name}</p>
-                        <p className="text-[11px] text-muted-foreground truncate">@{person.username || "student"}</p>
-                      </div>
-                    </div>
+              <>
+                {filteredConversations.length === 0 ? (
+                  <div className="p-6 text-center text-sm text-muted-foreground">
+                    <MessageSquarePlus className="mx-auto mb-2 h-10 w-10 text-muted-foreground/60" />
+                    <p className="font-medium">No active chats found.</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Search campus directory to start a new chat.
+                    </p>
                     <Button
                       size="sm"
                       variant="hero"
-                      className="text-xs shrink-0 h-8 px-3"
-                      onClick={() => {
-                        startConversationMutation.mutate({ target: person.user_id });
-                        setActiveTab("chats");
-                      }}
+                      className="mt-3 text-xs gap-1"
+                      onClick={() => setNewChatDialogOpen(true)}
                     >
-                      Chat
+                      <UserPlus className="w-3.5 h-3.5" /> Look Up Students
                     </Button>
                   </div>
-                ))}
+                ) : (
+                  filteredConversations.map((conversation) => (
+                    <button
+                      key={conversation.id}
+                      onClick={() => setSelectedChat(conversation.id)}
+                      className={`flex w-full items-center gap-3 rounded-xl p-3 transition-all hover:bg-muted/70 ${
+                        selectedChat === conversation.id ? "bg-primary/10 border border-primary/30" : ""
+                      }`}
+                    >
+                      <div className="relative">
+                        <Avatar className="h-11 w-11 border border-border">
+                          {conversation.avatarUrl && <AvatarImage src={conversation.avatarUrl} alt={conversation.name} />}
+                          <AvatarFallback className="bg-primary/10 text-primary font-bold">
+                            {conversation.name.charAt(0)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 rounded-full border-2 border-background" />
+                      </div>
+
+                      <div className="min-w-0 flex-1 text-left">
+                        <div className="flex items-center justify-between">
+                          <p className="truncate text-sm font-semibold">{conversation.name}</p>
+                          <span className="text-[11px] text-muted-foreground">{conversation.time}</span>
+                        </div>
+                        <div className="flex items-center justify-between mt-0.5">
+                          <p className="truncate text-xs text-muted-foreground max-w-[170px]">
+                            {blockedUsers.includes(conversation.otherUserId) ? (
+                              <span className="text-destructive font-medium">[User Blocked]</span>
+                            ) : (
+                              conversation.lastMessage
+                            )}
+                          </p>
+                          <Badge variant="outline" className="text-[10px] py-0 px-1.5 uppercase font-mono">
+                            {conversation.userType === "agent_trader" ? "Vendor" : "Student"}
+                          </Badge>
+                        </div>
+                      </div>
+                    </button>
+                  ))
+                )}
+              </>
+            )}
+
+            {/* DIRECTORY TAB - LIVE DATABASE CAMPUS MEMBERS */}
+            {activeTab === "directory" && (
+              <div className="space-y-2 p-1">
+                <div className="p-2 rounded-lg bg-primary/10 border border-primary/20 text-xs">
+                  <p className="font-semibold text-primary flex items-center gap-1">
+                    <Users className="w-3.5 h-3.5" /> Campus Members Directory
+                  </p>
+                  <p className="text-muted-foreground mt-0.5">
+                    Search and chat with verified students, roommates, and vendors.
+                  </p>
+                </div>
+
+                {(peopleSearchQuery.data ?? []).length === 0 ? (
+                  <p className="text-xs text-muted-foreground text-center py-6">
+                    No users matching &ldquo;{searchQuery}&rdquo;.
+                  </p>
+                ) : (
+                  (peopleSearchQuery.data ?? []).map((person) => (
+                    <div
+                      key={person.user_id}
+                      className="p-2.5 rounded-xl border border-border/60 bg-card flex items-center justify-between gap-2 hover:border-primary/40 transition-colors"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <Avatar className="h-9 w-9">
+                          {person.avatar_url && <AvatarImage src={person.avatar_url} alt={person.display_name} />}
+                          <AvatarFallback className="bg-primary/10 text-xs text-primary font-bold">
+                            {person.display_name.charAt(0)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="min-w-0">
+                          <p className="text-xs font-semibold truncate">{person.display_name}</p>
+                          <p className="text-[11px] text-muted-foreground truncate">
+                            @{person.username || "student"}
+                          </p>
+                        </div>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="hero"
+                        className="text-xs shrink-0 h-8 px-3"
+                        onClick={() => {
+                          startConversationMutation.mutate({ target: person.user_id });
+                          setActiveTab("chats");
+                        }}
+                      >
+                        Chat
+                      </Button>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+
+            {/* COMMUNITIES TAB */}
+            {activeTab === "communities" && (
+              <div className="space-y-3 p-1">
+                <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-800 dark:text-emerald-300">
+                  <p className="font-semibold flex items-center gap-1">
+                    <Users className="w-3.5 h-3.5" /> Campus Study Squads & Groups
+                  </p>
+                  <p className="mt-0.5">Connect with study circles, course groups, and hostel forums.</p>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="p-3 rounded-xl border bg-card space-y-2">
+                    <p className="font-semibold text-sm">Study Squads & Communities Hub</p>
+                    <p className="text-xs text-muted-foreground">
+                      Access all verified course circles, exam prep groups, and hostel links.
+                    </p>
+                    <Button
+                      asChild
+                      size="sm"
+                      variant="hero"
+                      className="w-full text-xs gap-1"
+                    >
+                      <a href="/groups">Browse All Campus Groups</a>
+                    </Button>
+                  </div>
+
+                  <div className="p-3 rounded-xl border bg-card space-y-2">
+                    <p className="font-semibold text-sm">WhatsApp Campus Hotline</p>
+                    <p className="text-xs text-muted-foreground">
+                      Direct verified WhatsApp support & community link: 08051454564.
+                    </p>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="w-full text-xs gap-1 text-emerald-600 dark:text-emerald-400 border-emerald-600/30"
+                      onClick={() => window.open("https://wa.me/2348051454564?text=Hi%20Admin,%20connecting%20from%20CampusHub%20Messages", "_blank")}
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" /> Open WhatsApp
+                    </Button>
+                  </div>
+                </div>
               </div>
             )}
           </div>
         </ScrollArea>
+
+        {/* Mobile Floating Action Button to start new chat */}
+        <Button
+          size="icon"
+          className="md:hidden fixed bottom-24 right-5 h-12 w-12 rounded-full shadow-xl bg-primary text-primary-foreground z-20"
+          onClick={() => setNewChatDialogOpen(true)}
+          title="Start New Chat"
+        >
+          <Plus className="h-6 w-6" />
+        </Button>
       </Card>
 
-      {/* RIGHT CHAT WINDOW */}
-      <Card className="glass-card flex flex-1 flex-col overflow-hidden border-primary/20">
+      {/* RIGHT CHAT WINDOW (Full width on mobile when a chat is selected) */}
+      <Card
+        className={`glass-card flex-1 flex-col overflow-hidden border-primary/20 ${
+          selectedChat ? "flex w-full" : "hidden md:flex"
+        }`}
+      >
         {selectedConversation ? (
           <>
-            {/* Chat Header */}
+            {/* Chat Header with mobile Back Button & WhatsApp Profile Info Trigger */}
             <CardHeader className="border-b border-border/50 py-3 bg-muted/20">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="relative">
-                    <Avatar className="h-10 w-10 border border-primary/30">
-                      <AvatarFallback className="bg-primary/10 text-primary font-bold">{selectedConversation.name.charAt(0)}</AvatarFallback>
-                    </Avatar>
-                    <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 rounded-full border-2 border-background" />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-1.5">
-                      <p className="font-semibold text-sm">{selectedConversation.name}</p>
-                      <Badge variant="secondary" className="text-[10px] py-0 px-1.5">
-                        {selectedConversation.handle}
-                      </Badge>
+                <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                  {/* Back button on mobile */}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="md:hidden h-8 w-8 shrink-0 -ml-1 text-muted-foreground hover:text-foreground"
+                    onClick={() => setSelectedChat(null)}
+                    title="Back to chats"
+                  >
+                    <ArrowLeft className="h-5 w-5" />
+                  </Button>
+
+                  {/* Profile Info Trigger */}
+                  <button
+                    type="button"
+                    onClick={() => setProfileModalOpen(true)}
+                    className="flex items-center gap-2.5 text-left min-w-0 rounded-lg p-1 -m-1 hover:bg-muted/60 transition-colors"
+                    title="View user profile & safety info"
+                  >
+                    <div className="relative shrink-0">
+                      <Avatar className="h-9 w-9 sm:h-10 sm:w-10 border border-primary/30">
+                        {selectedConversation.avatarUrl && (
+                          <AvatarImage src={selectedConversation.avatarUrl} alt={selectedConversation.name} />
+                        )}
+                        <AvatarFallback className="bg-primary/10 text-primary font-bold">
+                          {selectedConversation.name.charAt(0)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 rounded-full border-2 border-background" />
                     </div>
-                    <p className="text-xs text-emerald-500 font-medium flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Active on CampusHub
-                    </p>
-                  </div>
+
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <p className="font-semibold text-xs sm:text-sm truncate max-w-[130px] sm:max-w-[200px]">
+                          {selectedConversation.name}
+                        </p>
+                        <Badge variant="secondary" className="text-[10px] py-0 px-1 hidden sm:inline-flex">
+                          {selectedConversation.handle}
+                        </Badge>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground truncate flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                        {isOtherUserBlocked ? (
+                          <span className="text-destructive font-medium">Blocked</span>
+                        ) : (
+                          "Active on CampusHub"
+                        )}
+                      </p>
+                    </div>
+                  </button>
                 </div>
 
-                <div className="flex items-center gap-1">
-                  {(["telegram", "whatsapp", "snapchat"] as const).map((style) => (
-                    <Button key={style} variant={chatStyle === style ? "default" : "ghost"} size="sm" className="h-7 text-xs capitalize" onClick={() => setChatStyle(style)}>
-                      {style}
-                    </Button>
-                  ))}
-                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => toast.info(`Calling ${selectedConversation.name}...`)}><Phone className="h-4 w-4" /></Button>
-                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => toast.info(`Video calling ${selectedConversation.name}...`)}><Video className="h-4 w-4" /></Button>
+                {/* Top Action Controls */}
+                <div className="flex items-center gap-1 shrink-0">
+                  <div className="hidden sm:flex items-center gap-1">
+                    {(["whatsapp", "telegram", "snapchat"] as const).map((style) => (
+                      <Button
+                        key={style}
+                        variant={chatStyle === style ? "default" : "ghost"}
+                        size="sm"
+                        className="h-7 text-xs capitalize"
+                        onClick={() => setChatStyle(style)}
+                      >
+                        {style}
+                      </Button>
+                    ))}
+                  </div>
+
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                    onClick={() => setProfileModalOpen(true)}
+                    title="Profile & Privacy Details"
+                  >
+                    <Info className="h-4 w-4" />
+                  </Button>
                 </div>
               </div>
+
+              {/* Blocked User Warning Banner */}
+              {isOtherUserBlocked && (
+                <div className="mt-2 flex items-center justify-between rounded-lg bg-destructive/10 border border-destructive/20 p-2 text-xs text-destructive">
+                  <span className="flex items-center gap-1.5 font-medium">
+                    <Ban className="h-3.5 w-3.5" /> You have blocked this user.
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-6 text-[11px] px-2 border-destructive/40"
+                    onClick={() => toggleBlockUser(selectedConversation.otherUserId)}
+                  >
+                    Unblock
+                  </Button>
+                </div>
+              )}
             </CardHeader>
 
             {/* Messages Stream */}
-            <ScrollArea className="flex-1 p-4 bg-muted/10">
-              <div className="space-y-3">
+            <ScrollArea className="flex-1 p-3 sm:p-4 bg-muted/10">
+              <div className="space-y-3 pb-4">
+                {/* Security encryption notice */}
+                <div className="mx-auto max-w-xs text-center py-2 px-3 rounded-xl bg-muted/50 border border-border/40 text-[11px] text-muted-foreground">
+                  <ShieldCheck className="w-3.5 h-3.5 inline mr-1 text-primary" />
+                  Messages in CampusHub DM are private. Always use SecurePay escrow for transactions.
+                </div>
+
                 {(messagesQuery.data ?? []).map((message) => {
                   const isMine = message.sender_id === user?.id;
                   const themeStyle =
                     chatStyle === "telegram"
-                      ? isMine ? "bg-sky-600 text-white" : "bg-card border border-border/60"
+                      ? isMine
+                        ? "bg-sky-600 text-white"
+                        : "bg-card border border-border/60"
                       : chatStyle === "whatsapp"
-                      ? isMine ? "bg-emerald-600 text-white" : "bg-card border border-border/60"
-                      : isMine ? "bg-accent text-accent-foreground" : "bg-muted";
+                      ? isMine
+                        ? "bg-emerald-600 text-white"
+                        : "bg-card border border-border/60"
+                      : isMine
+                      ? "bg-accent text-accent-foreground"
+                      : "bg-muted";
 
                   return (
                     <div key={message.id} className={`flex ${isMine ? "justify-end" : "justify-start"}`}>
-                      <div className={`max-w-[75%] sm:max-w-[65%] rounded-2xl px-4 py-2.5 shadow-sm ${isMine ? `rounded-br-none ${themeStyle}` : `rounded-bl-none ${themeStyle}`}`}>
-                        <p className="text-xs sm:text-sm leading-relaxed">{message.content}</p>
-                        <div className={`flex items-center justify-end gap-1 mt-1 text-[10px] ${isMine ? "text-white/80" : "text-muted-foreground"}`}>
+                      <div
+                        className={`max-w-[85%] sm:max-w-[70%] rounded-2xl px-3.5 py-2.5 shadow-sm ${
+                          isMine ? `rounded-br-none ${themeStyle}` : `rounded-bl-none ${themeStyle}`
+                        }`}
+                      >
+                        <p className="text-xs sm:text-sm leading-relaxed whitespace-pre-wrap">{message.content}</p>
+                        <div
+                          className={`flex items-center justify-end gap-1 mt-1 text-[10px] ${
+                            isMine ? "text-white/80" : "text-muted-foreground"
+                          }`}
+                        >
                           <span>{formatRelativeTime(message.created_at)}</span>
                           {isMine && <CheckCheck className="w-3.5 h-3.5" />}
                         </div>
@@ -523,106 +816,272 @@ const Messages = () => {
               </div>
             </ScrollArea>
 
-            {/* Message Input Box */}
-            <div className="border-t border-border/50 p-3 bg-card">
-              <div className="mb-2 flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
-                <Label className="flex items-center gap-1.5 cursor-pointer">
-                  <Switch checked={disappearingEnabled} onCheckedChange={setDisappearingEnabled} />
-                  24h Disappearing
-                </Label>
-                <Label className="flex items-center gap-1.5 cursor-pointer">
-                  <Switch checked={viewOnce} onCheckedChange={setViewOnce} />
-                  View Once
-                </Label>
-              </div>
+            {/* Sticky Input Field Area */}
+            <div className="border-t border-border/50 p-2.5 sm:p-3 bg-card/95 backdrop-blur-md">
+              {isOtherUserBlocked ? (
+                <div className="p-3 text-center text-xs text-muted-foreground bg-muted/40 rounded-xl">
+                  Unblock {selectedConversation.name} to send a message.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-1.5 sm:gap-2">
+                    <Popover open={emojiOpen} onOpenChange={setEmojiOpen}>
+                      <PopoverTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0 text-muted-foreground">
+                          <Smile className="h-5 w-5" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent side="top" className="w-auto p-0 border-none">
+                        <EmojiPicker
+                          onEmojiClick={(data) => {
+                            setNewMessage((prev) => prev + data.emoji);
+                            setEmojiOpen(false);
+                          }}
+                        />
+                      </PopoverContent>
+                    </Popover>
 
-              <div className="flex items-center gap-2">
-                <Input
-                  placeholder={`Message ${selectedConversation.name}...`}
-                  value={newMessage}
-                  onChange={(event) => setNewMessage(event.target.value)}
-                  onKeyDown={handleKeyPress}
-                  className="flex-1 text-xs sm:text-sm"
-                />
-                <Popover open={emojiOpen} onOpenChange={setEmojiOpen}>
-                  <PopoverTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-9 w-9"><Smile className="h-5 w-5" /></Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" side="top">
-                    <EmojiPicker onEmojiClick={(emojiData) => { setNewMessage((curr) => curr + emojiData.emoji); setEmojiOpen(false); }} />
-                  </PopoverContent>
-                </Popover>
+                    <Input
+                      placeholder={`Message ${selectedConversation.name}...`}
+                      value={newMessage}
+                      onChange={(event) => setNewMessage(event.target.value)}
+                      onKeyDown={handleKeyPress}
+                      className="flex-1 text-xs sm:text-sm h-10 bg-background"
+                    />
 
-                <Button
-                  variant="hero"
-                  size="icon"
-                  className="h-9 w-9 shrink-0"
-                  disabled={!newMessage.trim() || sendMessageMutation.isPending}
-                  onClick={() => sendMessageMutation.mutate()}
-                >
-                  <Send className="h-4 w-4" />
-                </Button>
-              </div>
+                    <Button
+                      variant="hero"
+                      size="icon"
+                      className="h-10 w-10 shrink-0 shadow-sm"
+                      onClick={() => sendMessageMutation.mutate()}
+                      disabled={!newMessage.trim() || sendMessageMutation.isPending}
+                    >
+                      <Send className="h-4 w-4" />
+                    </Button>
+                  </div>
+
+                  {/* Disappearing & View-Once privacy toggles */}
+                  <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-1 px-1">
+                    <div className="flex items-center gap-3">
+                      <label className="flex items-center gap-1.5 cursor-pointer">
+                        <Switch
+                          checked={disappearingEnabled}
+                          onCheckedChange={setDisappearingEnabled}
+                          className="scale-75"
+                        />
+                        <span>24h Auto-delete</span>
+                      </label>
+                      <label className="flex items-center gap-1.5 cursor-pointer">
+                        <Switch
+                          checked={viewOnce}
+                          onCheckedChange={setViewOnce}
+                          className="scale-75"
+                        />
+                        <span>View-once</span>
+                      </label>
+                    </div>
+                    <span className="hidden sm:inline font-mono text-[10px]">Press Enter ↵ to send</span>
+                  </div>
+                </div>
+              )}
             </div>
           </>
         ) : (
-          <div className="flex flex-1 flex-col items-center justify-center p-6 text-center space-y-3">
-            <div className="w-16 h-16 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-primary">
-              <MessageCircle className="w-8 h-8" />
+          <div className="flex flex-1 flex-col items-center justify-center p-8 text-center">
+            <div className="h-16 w-16 rounded-2xl bg-primary/10 flex items-center justify-center text-primary mb-4">
+              <MessageCircle className="h-8 w-8" />
             </div>
-            <h3 className="text-lg font-display font-bold">Select a Chat or Search Username</h3>
-            <p className="text-xs text-muted-foreground max-w-sm">
-              Connect with fellow students, agents, and vendors. Search handles using `@username` or choose a contact on the left.
+            <h3 className="font-display font-bold text-lg">Your Campus Messages</h3>
+            <p className="text-sm text-muted-foreground max-w-sm mt-1">
+              Select a chat from the left or search students to start a secure conversation.
             </p>
+            <Button
+              variant="hero"
+              className="mt-4 gap-1.5"
+              onClick={() => setNewChatDialogOpen(true)}
+            >
+              <UserPlus className="h-4 w-4" />
+              Start New Chat
+            </Button>
           </div>
         )}
       </Card>
 
-      {/* Friend Search Dialog */}
-      <Dialog open={friendDialogOpen} onOpenChange={setFriendDialogOpen}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
-          <DialogHeader>
-            <DialogTitle>Find & Add Campus Contacts</DialogTitle>
-            <DialogDescription>Search registered members by handle, display name, or phone number.</DialogDescription>
-          </DialogHeader>
+      {/* WHATSAPP-STYLE IN-CHAT USER PROFILE & PRIVACY/BLOCK MODAL */}
+      <Dialog open={profileModalOpen} onOpenChange={setProfileModalOpen}>
+        <DialogContent className="max-w-sm p-0 overflow-hidden">
+          {selectedConversation && (
+            <div className="flex flex-col">
+              {/* Profile Header Header Background */}
+              <div className="bg-gradient-to-r from-primary/20 via-primary/10 to-background p-6 text-center border-b border-border/50">
+                <Avatar className="h-20 w-20 mx-auto border-4 border-background shadow-md">
+                  {selectedConversation.avatarUrl && (
+                    <AvatarImage src={selectedConversation.avatarUrl} alt={selectedConversation.name} />
+                  )}
+                  <AvatarFallback className="bg-primary text-primary-foreground font-bold text-2xl">
+                    {selectedConversation.name.charAt(0)}
+                  </AvatarFallback>
+                </Avatar>
+                <h3 className="mt-3 text-lg font-bold font-display">{selectedConversation.name}</h3>
+                <p className="text-xs text-muted-foreground">{selectedConversation.handle}</p>
+                <div className="mt-2 flex items-center justify-center gap-1.5">
+                  <Badge variant="outline" className="text-xs capitalize">
+                    {selectedConversation.userType === "agent_trader" ? "Trader / Agent" : "Student"}
+                  </Badge>
+                  <Badge variant="secondary" className="text-xs">
+                    {selectedConversation.universityName || "Campus Community"}
+                  </Badge>
+                </div>
+              </div>
 
-          <div className="space-y-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                placeholder="Search @username or name..."
-                value={friendSearch}
-                onChange={(event) => setFriendSearch(event.target.value)}
-                className="pl-10"
-              />
-            </div>
+              {/* Profile Details & Bio */}
+              <div className="p-4 space-y-4">
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">About / Status</Label>
+                  <p className="text-xs font-medium bg-muted/40 p-2.5 rounded-lg">
+                    {selectedConversation.bio || "Active on CampusHub Connect."}
+                  </p>
+                </div>
 
-            <div className="space-y-2">
-              {(peopleSearchQuery.data ?? []).map((person) => (
-                <div key={person.user_id} className="flex items-center justify-between p-3 rounded-lg border border-border/60 bg-card">
-                  <div className="flex items-center gap-3">
-                    <Avatar className="h-9 w-9">
-                      <AvatarFallback className="bg-primary/10 text-primary font-bold">{person.display_name.charAt(0)}</AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <p className="text-xs font-semibold">{person.display_name}</p>
-                      <p className="text-[11px] text-muted-foreground">@{person.username || "student"}</p>
-                    </div>
+                {/* Friendship & Network Status */}
+                <div className="flex items-center justify-between p-3 rounded-xl border border-border/60 bg-card">
+                  <div>
+                    <p className="text-xs font-semibold">Campus Friends List</p>
+                    <p className="text-[11px] text-muted-foreground">
+                      {isOtherUserFriend ? "On your campus friends list" : "Not yet on your friends list"}
+                    </p>
                   </div>
                   <Button
                     size="sm"
-                    variant="hero"
-                    onClick={() => {
-                      startConversationMutation.mutate({ target: person.user_id });
-                      setFriendDialogOpen(false);
-                    }}
+                    variant={isOtherUserFriend ? "outline" : "hero"}
+                    className="h-8 text-xs gap-1"
+                    onClick={() => toggleFollowUser(selectedConversation.otherUserId)}
                   >
-                    Start Chat
+                    {isOtherUserFriend ? (
+                      <>
+                        <Check className="h-3.5 w-3.5" /> Friends
+                      </>
+                    ) : (
+                      <>
+                        <UserPlus className="h-3.5 w-3.5" /> Add Friend
+                      </>
+                    )}
                   </Button>
                 </div>
-              ))}
+
+                {/* Privacy & Safety Controls */}
+                <div className="space-y-2 pt-2 border-t border-border/50">
+                  <Label className="text-xs text-muted-foreground">Privacy & Moderation</Label>
+
+                  {/* Block / Unblock Button */}
+                  <Button
+                    variant={isOtherUserBlocked ? "outline" : "destructive"}
+                    className="w-full text-xs justify-start gap-2 h-9"
+                    onClick={() => toggleBlockUser(selectedConversation.otherUserId)}
+                  >
+                    <Ban className="h-4 w-4" />
+                    <span>
+                      {isOtherUserBlocked ? `Unblock ${selectedConversation.name}` : `Block ${selectedConversation.name}`}
+                    </span>
+                  </Button>
+
+                  {/* Report Button */}
+                  <Button
+                    variant="ghost"
+                    className="w-full text-xs justify-start gap-2 h-9 text-muted-foreground hover:text-destructive"
+                    onClick={() => {
+                      window.open(
+                        `https://wa.me/2348051454564?text=${encodeURIComponent(
+                          `Report user on CampusHub: ${selectedConversation.name} (${selectedConversation.otherUserId})`,
+                        )}`,
+                        "_blank",
+                      );
+                    }}
+                  >
+                    <Flag className="h-4 w-4" />
+                    <span>Report User to Moderation (08051454564)</span>
+                  </Button>
+                </div>
+              </div>
             </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* NEW CHAT / STUDENT LOOKUP DIALOG */}
+      <Dialog open={newChatDialogOpen} onOpenChange={setNewChatDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <UserPlus className="h-5 w-5 text-primary" /> Start New Chat
+            </DialogTitle>
+            <DialogDescription>
+              Look up any registered student, faculty member, or vendor by name or @username.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Type name, @username, or faculty..."
+                value={userSearchTerm}
+                onChange={(event) => setUserSearchTerm(event.target.value)}
+                className="pl-10 h-10"
+                autoFocus
+              />
+            </div>
+
+            <ScrollArea className="h-64 rounded-lg border p-2">
+              <div className="space-y-2">
+                {(peopleSearchQuery.data ?? []).length === 0 ? (
+                  <p className="text-xs text-muted-foreground text-center py-10">
+                    No students found matching &ldquo;{userSearchTerm}&rdquo;.
+                  </p>
+                ) : (
+                  (peopleSearchQuery.data ?? []).map((person) => (
+                    <div
+                      key={person.user_id}
+                      className="flex items-center justify-between p-2.5 rounded-xl border border-border/60 bg-card hover:border-primary/40 transition-colors"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <Avatar className="h-10 w-10">
+                          {person.avatar_url && <AvatarImage src={person.avatar_url} alt={person.display_name} />}
+                          <AvatarFallback className="bg-primary/10 text-primary font-bold">
+                            {person.display_name.charAt(0)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="min-w-0">
+                          <p className="text-xs font-semibold truncate">{person.display_name}</p>
+                          <p className="text-[11px] text-muted-foreground truncate">
+                            @{person.username || "student"} •{" "}
+                            <span className="capitalize">{person.user_type || "student"}</span>
+                          </p>
+                        </div>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="hero"
+                        className="text-xs shrink-0 h-8 px-3"
+                        onClick={() => {
+                          startConversationMutation.mutate({ target: person.user_id });
+                          setNewChatDialogOpen(false);
+                        }}
+                      >
+                        Start Chat
+                      </Button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </ScrollArea>
           </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setNewChatDialogOpen(false)}>
+              Cancel
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

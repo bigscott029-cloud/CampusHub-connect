@@ -20,6 +20,7 @@ import {
   Video,
   Type,
   Clock,
+  Send,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -43,9 +44,10 @@ interface Story {
 
 interface StoriesCarouselProps {
   onCreateStory?: () => void;
+  onSelectUserForChat?: (userId: string, initialMessage?: string) => void;
 }
 
-const StoriesCarousel = ({ onCreateStory }: StoriesCarouselProps) => {
+const StoriesCarousel = ({ onCreateStory, onSelectUserForChat }: StoriesCarouselProps) => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [selectedStory, setSelectedStory] = useState<Story | null>(null);
@@ -54,7 +56,77 @@ const StoriesCarousel = ({ onCreateStory }: StoriesCarouselProps) => {
   const [storyType, setStoryType] = useState<"text" | "image" | "video">("text");
   const [storyContent, setStoryContent] = useState("");
   const [storyFile, setStoryFile] = useState<File | null>(null);
+  const [storyReplyText, setStoryReplyText] = useState("");
+  const [isSendingReply, setIsSendingReply] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleSendStoryReply = async (customText?: string) => {
+    const textToSend = customText || storyReplyText.trim();
+    if (!textToSend || !selectedStory || !user) return;
+    if (selectedStory.userId === user.id) {
+      toast.info("This is your own status!");
+      return;
+    }
+
+    try {
+      setIsSendingReply(true);
+      // Check if conversation already exists
+      const { data: existingConvs } = await supabase
+        .from("conversations")
+        .select("id")
+        .or(`and(participant_1.eq.${user.id},participant_2.eq.${selectedStory.userId}),and(participant_1.eq.${selectedStory.userId},participant_2.eq.${user.id})`)
+        .limit(1);
+
+      let conversationId = existingConvs?.[0]?.id;
+
+      if (!conversationId) {
+        const { data: newConv, error: convError } = await supabase
+          .from("conversations")
+          .insert({
+            participant_1: user.id,
+            participant_2: selectedStory.userId,
+            last_message_at: new Date().toISOString(),
+          })
+          .select("id")
+          .single();
+
+        if (convError) throw convError;
+        conversationId = newConv.id;
+      }
+
+      const formattedContent = `[Replied to Status]: "${selectedStory.content.text || 'Photo/Video Status'}"\n${textToSend}`;
+
+      const { error: msgError } = await supabase
+        .from("messages")
+        .insert({
+          conversation_id: conversationId,
+          sender_id: user.id,
+          content: formattedContent,
+        });
+
+      if (msgError) throw msgError;
+
+      await supabase
+        .from("conversations")
+        .update({ last_message_at: new Date().toISOString() })
+        .eq("id", conversationId);
+
+      queryClient.invalidateQueries({ queryKey: ["conversations"] });
+      queryClient.invalidateQueries({ queryKey: ["messages", conversationId] });
+
+      toast.success(`Reply sent to ${selectedStory.userName}!`);
+      setStoryReplyText("");
+      setStoryViewerOpen(false);
+
+      if (onSelectUserForChat) {
+        onSelectUserForChat(selectedStory.userId, formattedContent);
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Could not send reply.");
+    } finally {
+      setIsSendingReply(false);
+    }
+  };
 
   const storiesQuery = useQuery({
     queryKey: ["stories-carousel"],
@@ -348,19 +420,65 @@ const StoriesCarousel = ({ onCreateStory }: StoriesCarouselProps) => {
 
               {/* Navigation */}
               <button
-                className="absolute left-0 top-1/2 -translate-y-1/2 w-1/3 h-full"
+                className="absolute left-0 top-1/4 h-1/2 w-1/3 z-10"
                 onClick={() => navigateStory("prev")}
+                title="Previous story"
               />
               <button
-                className="absolute right-0 top-1/2 -translate-y-1/2 w-1/3 h-full"
+                className="absolute right-0 top-1/4 h-1/2 w-1/3 z-10"
                 onClick={() => navigateStory("next")}
+                title="Next story"
               />
 
-              {/* Viewers count */}
-              <div className="absolute bottom-4 left-4 flex items-center gap-1 text-white/70 text-sm">
-                <Clock className="w-4 h-4" />
+              {/* Time indicator */}
+              <div className="absolute top-16 left-4 flex items-center gap-1 text-white/70 text-xs">
+                <Clock className="w-3.5 h-3.5" />
                 <span>{formatRelativeTime(selectedStory.createdAt)}</span>
               </div>
+
+              {/* Bottom Reply Bar (WhatsApp / Instagram style) */}
+              {selectedStory.userId !== user?.id && (
+                <div className="absolute bottom-3 left-3 right-3 z-20 flex flex-col gap-2 rounded-2xl bg-black/60 p-2.5 backdrop-blur-md">
+                  {/* Quick reactions */}
+                  <div className="flex items-center justify-around py-1 text-lg">
+                    {["🔥", "❤️", "👏", "😂", "🙌", "😍"].map((emoji) => (
+                      <button
+                        key={emoji}
+                        type="button"
+                        onClick={() => handleSendStoryReply(emoji)}
+                        disabled={isSendingReply}
+                        className="transition-transform active:scale-125 hover:scale-110"
+                      >
+                        {emoji}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Reply Input Form */}
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      handleSendStoryReply();
+                    }}
+                    className="flex items-center gap-2"
+                  >
+                    <Input
+                      placeholder={`Reply to ${selectedStory.userName}...`}
+                      value={storyReplyText}
+                      onChange={(e) => setStoryReplyText(e.target.value)}
+                      className="h-9 border-white/20 bg-white/10 text-xs text-white placeholder:text-white/60 focus-visible:ring-white/40"
+                    />
+                    <Button
+                      type="submit"
+                      size="sm"
+                      disabled={!storyReplyText.trim() || isSendingReply}
+                      className="h-9 shrink-0 gap-1 bg-primary text-primary-foreground text-xs"
+                    >
+                      <Send className="h-3.5 w-3.5" />
+                    </Button>
+                  </form>
+                </div>
+              )}
             </div>
           )}
         </DialogContent>

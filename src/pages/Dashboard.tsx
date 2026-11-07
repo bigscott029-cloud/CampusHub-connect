@@ -299,18 +299,6 @@ const Dashboard = () => {
     }
   }, [dashboardQuery.data?.userType]);
 
-  // Real campus trending tags fallback when no post tags exist yet
-  const realCampusTrendingFallback = useMemo(
-    () => [
-      { tag: "UNILAG", count: 18 },
-      { tag: "HostelSearch", count: 14 },
-      { tag: "CampusMarket", count: 12 },
-      { tag: "Exams2026", count: 9 },
-      { tag: "FUTA_Gists", count: 7 },
-    ],
-    [],
-  );
-
   const data = dashboardQuery.data;
 
   return (
@@ -865,18 +853,27 @@ const Dashboard = () => {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {(data?.trendingTags.length ? data.trendingTags : realCampusTrendingFallback).map((item) => (
-                <Link
-                  key={item.tag}
-                  to={`/trending/${encodeURIComponent(item.tag)}`}
-                  className="flex items-center justify-between p-2 rounded-lg hover:bg-accent/10 transition-colors group"
-                >
-                  <span className="text-sm font-medium text-primary group-hover:underline">#{item.tag}</span>
-                  <Badge variant="secondary" className="text-xs">
-                    {item.count} {item.count === 1 ? "post" : "posts"}
-                  </Badge>
-                </Link>
-              ))}
+              {data?.trendingTags && data.trendingTags.length > 0 ? (
+                data.trendingTags.map((item) => (
+                  <Link
+                    key={item.tag}
+                    to={`/trending/${encodeURIComponent(item.tag)}`}
+                    className="flex items-center justify-between p-2 rounded-lg hover:bg-accent/10 transition-colors group"
+                  >
+                    <span className="text-sm font-medium text-primary group-hover:underline">#{item.tag}</span>
+                    <Badge variant="secondary" className="text-xs">
+                      {item.count} {item.count === 1 ? "post" : "posts"}
+                    </Badge>
+                  </Link>
+                ))
+              ) : (
+                <div className="p-4 text-center text-xs text-muted-foreground border border-dashed rounded-lg">
+                  <p>No hashtags created in posts yet.</p>
+                  <Button asChild variant="link" size="sm" className="text-xs p-0 h-auto mt-1">
+                    <Link to="/feeds">Create the first tagged gist</Link>
+                  </Button>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>

@@ -80,8 +80,6 @@ interface ThreadComment {
   avatar: string;
 }
 
-const fallbackTopics = ["CampusLife", "StudyTips", "Marketplace", "HostelHub", "UNILAG", "FUTA"];
-
 const isVideoMedia = (url?: string) => {
   if (!url) return false;
   const lower = url.toLowerCase();
@@ -295,7 +293,7 @@ const Feed = () => {
       .slice(0, 5)
       .map(([tag, count]) => ({ tag, count: formatCompactNumber(count) }));
 
-    return topics.length ? topics : fallbackTopics.map((tag) => ({ tag, count: "1" }));
+    return topics;
   }, [posts]);
 
   const openThread = (post: FeedPost) => {
@@ -539,12 +537,18 @@ const Feed = () => {
               </div>
             </CardHeader>
             <CardContent className="space-y-3">
-              {trendingTopics.map((topic, index) => (
-                <button key={topic.tag} onClick={() => handleHashtagClick(topic.tag)} className="flex w-full items-center justify-between rounded px-2 py-2 transition-colors hover:bg-muted/50">
-                  <span className="text-sm font-medium text-primary">#{topic.tag}</span>
-                  <span className="text-xs text-muted-foreground">#{index + 1} • {topic.count}</span>
-                </button>
-              ))}
+              {trendingTopics.length > 0 ? (
+                trendingTopics.map((topic, index) => (
+                  <button key={topic.tag} onClick={() => handleHashtagClick(topic.tag)} className="flex w-full items-center justify-between rounded px-2 py-2 transition-colors hover:bg-muted/50">
+                    <span className="text-sm font-medium text-primary">#{topic.tag}</span>
+                    <span className="text-xs text-muted-foreground">#{index + 1} • {topic.count}</span>
+                  </button>
+                ))
+              ) : (
+                <p className="text-xs text-muted-foreground py-2 text-center">
+                  No trending hashtags yet. Tag your post with #topic to start a campus trend!
+                </p>
+              )}
             </CardContent>
           </Card>
 
