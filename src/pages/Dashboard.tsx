@@ -354,29 +354,6 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* Role / Category View Selector */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-xl bg-card border border-border/60 p-2 shadow-sm">
-        <div className="text-sm font-medium px-2 text-muted-foreground flex items-center gap-1.5">
-          <Sparkles className="w-4 h-4 text-primary" />
-          Switch Category View:
-        </div>
-        <Tabs value={activeRoleTab} onValueChange={(val) => setActiveRoleTab(val as UserCategory)} className="w-full sm:w-auto">
-          <TabsList className="grid w-full grid-cols-3 sm:w-auto">
-            <TabsTrigger value="student" className="gap-1.5 text-xs sm:text-sm">
-              <School className="h-4 w-4 text-blue-500" />
-              Student (Target)
-            </TabsTrigger>
-            <TabsTrigger value="community" className="gap-1.5 text-xs sm:text-sm">
-              <Users className="h-4 w-4 text-emerald-500" />
-              Regular User
-            </TabsTrigger>
-            <TabsTrigger value="trader_agent" className="gap-1.5 text-xs sm:text-sm">
-              <Store className="h-4 w-4 text-amber-500" />
-              Trader / Agent
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
-      </div>
 
       {/* CATEGORY 1: STUDENT DASHBOARD (MAIN TARGET - FULL UNRESTRICTED ACCESS) */}
       {activeRoleTab === "student" && (
