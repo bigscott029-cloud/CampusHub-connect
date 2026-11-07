@@ -49,6 +49,9 @@ import EditProfile from "./pages/EditProfile";
 import ReputationInfo from "./pages/ReputationInfo";
 import Settings from "./pages/Settings";
 import AdminPanel from "./pages/AdminPanel";
+import Explore from "./pages/Explore";
+import PWASplashScreen from "@/components/pwa/PWASplashScreen";
+import { isStandalonePWA, hasSeenSessionSplash } from "@/lib/pwa";
 
 const queryClient = new QueryClient();
 
@@ -94,6 +97,8 @@ const App = () => (
             <Route path="/terms" element={<TermsOfService />} />
             <Route path="/marketplace-rules" element={<MarketplaceRules />} />
 
+            <Route path="/explore" element={<Explore />} />
+
             {/* Protected Routes with Dashboard Layout */}
             <Route
               element={
@@ -105,6 +110,7 @@ const App = () => (
             >
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/feed" element={<Feed />} />
+              <Route path="/explore" element={<Explore />} />
               <Route path="/trending/:hashtag" element={<TrendingPosts />} />
               <Route path="/anonymous" element={<Anonymous />} />
               <Route path="/hostel" element={<Hostel />} />

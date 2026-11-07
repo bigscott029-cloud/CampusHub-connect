@@ -5,7 +5,9 @@ import { supabase } from "@/integrations/supabase/client";
 interface AuthContextType {
   user: User | null;
   session: Session | null;
-  loading: boolean;
+  isEmailVerified: boolean;
+  isGracePeriodExpired: boolean;
+  gracePeriodDaysRemaining: number;
   signUp: (
     email: string,
     password: string,
@@ -99,6 +101,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           phone_number: options?.phoneNumber || null,
         })
         .eq("user_id", data.user.id);
+
+      // Soft onboarding: If no session was returned due to Supabase email verification setting, attempt instant signin
+      if (!data.session) {
+        await supabase.auth.signInWithPassword({
+          email: normalizedEmail,
+          password,
+        });
+      }
     }
 
     return { error };
@@ -129,8 +139,29 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     await supabase.auth.signOut();
   };
 
+  const isEmailVerified = Boolean(user?.email_confirmed_at);
+  const userCreatedAt = user?.created_at ? new Date(user.created_at) : new Date();
+  const msElapsed = Date.now() - userCreatedAt.getTime();
+  const daysElapsed = msElapsed / (1000 * 60 * 60 * 24);
+  const gracePeriodDaysRemaining = Math.max(0, Math.ceil(7 - daysElapsed));
+  const isGracePeriodExpired = !isEmailVerified && daysElapsed > 7;
+
   return (
-    <AuthContext.Provider value={{ user, session, loading, signUp, signIn, resetPasswordForEmail, updatePassword, signOut }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        session,
+        loading,
+        isEmailVerified,
+        isGracePeriodExpired,
+        gracePeriodDaysRemaining,
+        signUp,
+        signIn,
+        resetPasswordForEmail,
+        updatePassword,
+        signOut,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

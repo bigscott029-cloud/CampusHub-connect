@@ -44,6 +44,11 @@ import {
   Plus,
   Trophy,
   Trash2,
+  Search,
+  DollarSign,
+  Sliders,
+  CheckCircle2,
+  XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -93,6 +98,21 @@ const AdminPanel = () => {
   const [adDialogOpen, setAdDialogOpen] = useState(false);
   const [editingAd, setEditingAd] = useState<any>(null);
   const [adForm, setAdForm] = useState(emptyAdForm);
+  const [adSearchQuery, setAdSearchQuery] = useState("");
+  const [pricingSettings, setPricingSettings] = useState({
+    adLocal1Day: "5000",
+    adLocal2Days: "8000",
+    adLocal3Days: "11000",
+    adLocal1Week: "30000",
+    adGlobal1Day: "15000",
+    adGlobal1Week: "80000",
+    agentVerificationFee: "20000",
+    agentDailyPostLimit: "10",
+    agentMonthlyPostLimit: "100",
+    securePayFeePercent: "2.5",
+    marketplaceCommission: "10",
+    supportHotline: "08051454564",
+  });
   const [loading, setLoading] = useState(true);
   const { adminLogout, adminUsername } = useAdminAuth();
   const navigate = useNavigate();
@@ -562,6 +582,70 @@ const AdminPanel = () => {
     }
   };
 
+  const approveAd = async (ad: any) => {
+    try {
+      const { error } = await (supabase as any)
+        .from("ads")
+        .update({ status: "active", payment_status: "paid" })
+        .eq("id", ad.id);
+      if (error) throw error;
+
+      if (ad.owner_id) {
+        await supabase.from("notifications").insert({
+          user_id: ad.owner_id,
+          title: "Ad Campaign Approved & Live! 🎉",
+          description: `Your campaign "${ad.title}" has been verified and is now broadcasting across CampusHub.`,
+          type: "ad",
+          is_important: true,
+        });
+      }
+
+      toast.success("Ad approved and live on campus feeds!");
+      await fetchRequests();
+    } catch (error) {
+      console.error("Error approving ad:", error);
+      toast.error("Failed to approve ad.");
+    }
+  };
+
+  const rejectAdAndRefund = async (ad: any) => {
+    const reason = window.prompt("Reason for ad rejection (this is sent to the advertiser for 24-48h refund processing):");
+    if (reason === null) return;
+
+    try {
+      const { error } = await (supabase as any)
+        .from("ads")
+        .update({
+          status: "rejected",
+          payment_status: "refund_pending",
+          admin_notes: `Rejected by Admin. Reason: ${reason}. Refund will be processed within 24-48 hours. Support: 08051454564`,
+        })
+        .eq("id", ad.id);
+      if (error) throw error;
+
+      if (ad.owner_id) {
+        await supabase.from("notifications").insert({
+          user_id: ad.owner_id,
+          title: "Ad Review Update: Refund Queued",
+          description: `Your ad "${ad.title}" was not approved (${reason || "Policy compliance"}). A full refund will be processed within 24–48 hours to your original payment source.`,
+          type: "ad",
+          is_important: true,
+        });
+      }
+
+      toast.success("Ad marked as rejected. 24-48hr refund status recorded.");
+      await fetchRequests();
+    } catch (error) {
+      console.error("Error rejecting ad:", error);
+      toast.error("Failed to update ad status.");
+    }
+  };
+
+  const savePricingSettings = () => {
+    localStorage.setItem("campushub_admin_pricing_settings", JSON.stringify(pricingSettings));
+    toast.success("Platform pricing, fees, and agent limits saved successfully!");
+  };
+
   const renderRequestCard = (request: any, type: "hostel" | "roommate" | "marketplace") => {
     const title = request.title || "Untitled";
     const createdAt = request.created_at ? new Date(request.created_at).toLocaleDateString() : "Unknown";
@@ -767,6 +851,10 @@ const AdminPanel = () => {
             <Megaphone className="w-4 h-4" />
             Ads ({ads.length})
           </TabsTrigger>
+          <TabsTrigger value="pricing" className="gap-1">
+            <DollarSign className="w-4 h-4 text-emerald-500" />
+            Pricing &amp; Limits
+          </TabsTrigger>
           <TabsTrigger value="referrals" className="gap-1">
             <Trophy className="w-4 h-4" />
             Ref. Rank
@@ -918,15 +1006,28 @@ const AdminPanel = () => {
           <Card className="glass-card">
             <CardContent className="flex flex-col gap-4 pt-6 md:flex-row md:items-center md:justify-between">
               <div>
-                <h2 className="text-lg font-semibold">Sponsored Campaigns</h2>
-                <p className="text-sm text-muted-foreground">Create ads for web and off-platform advertisers, then schedule and target them.</p>
+                <h2 className="text-lg font-semibold">Sponsored Campaigns &amp; Ads</h2>
+                <p className="text-sm text-muted-foreground">Manage user ad submissions, verify creative content, and approve live broadcasts.</p>
               </div>
-              <Button onClick={() => openAdDialog()}>
-                <Plus className="mr-2 h-4 w-4" />
-                New Ad
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button onClick={() => openAdDialog()}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  New Ad
+                </Button>
+              </div>
             </CardContent>
           </Card>
+
+          {/* Search bar for Ads by sponsor, title, date, or status */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              placeholder="Search ads by sponsor name, title, date, or payment status..."
+              value={adSearchQuery}
+              onChange={(e) => setAdSearchQuery(e.target.value)}
+              className="pl-9 bg-card border-border/70 text-xs h-10"
+            />
+          </div>
 
           {ads.length === 0 ? (
             <Card className="glass-card">
@@ -936,55 +1037,250 @@ const AdminPanel = () => {
               </CardContent>
             </Card>
           ) : (
-            ads.map((ad) => (
-              <Card key={ad.id} className="glass-card">
-                <CardContent className="pt-6">
-                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                    <div className="flex gap-4">
-                      <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-primary/10">
-                        {ad.creative_url ? (
-                          <img src={ad.creative_url} alt={ad.title} className="h-full w-full object-cover" />
-                        ) : (
-                          <Megaphone className="h-7 w-7 text-primary" />
+            ads
+              .filter((ad) => {
+                if (!adSearchQuery.trim()) return true;
+                const q = adSearchQuery.toLowerCase();
+                return (
+                  ad.title?.toLowerCase().includes(q) ||
+                  ad.sponsor_name?.toLowerCase().includes(q) ||
+                  ad.created_at?.includes(q) ||
+                  ad.status?.toLowerCase().includes(q) ||
+                  ad.payment_status?.toLowerCase().includes(q)
+                );
+              })
+              .map((ad) => (
+                <Card key={ad.id} className="glass-card">
+                  <CardContent className="pt-6">
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                      <div className="flex gap-4">
+                        <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-primary/10">
+                          {ad.creative_url ? (
+                            <img src={ad.creative_url} alt={ad.title} className="h-full w-full object-cover" />
+                          ) : (
+                            <Megaphone className="h-7 w-7 text-primary" />
+                          )}
+                        </div>
+                        <div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h3 className="font-semibold">{ad.title}</h3>
+                            <Badge variant={ad.status === "active" ? "default" : ad.status === "rejected" ? "destructive" : "secondary"}>
+                              {ad.status}
+                            </Badge>
+                            <Badge variant={ad.payment_status === "paid" ? "secondary" : "destructive"}>
+                              {ad.payment_status}
+                            </Badge>
+                            {ad.tier_price > 0 && (
+                              <Badge variant="outline" className="font-mono text-xs">
+                                ₦{Number(ad.tier_price).toLocaleString()}
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="text-sm text-muted-foreground">Sponsor: {ad.sponsor_name} &bull; Created: {ad.created_at ? new Date(ad.created_at).toLocaleString() : "Recent"}</p>
+                          <p className="mt-1 max-w-2xl text-sm">{ad.description}</p>
+                          <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                            <Badge variant="outline">{ad.target_scope || ad.placement_type}</Badge>
+                            {ad.geo_region && <Badge variant="outline">{ad.geo_region}</Badge>}
+                            <Badge variant="secondary">{Number(ad.impressions_count ?? 0).toLocaleString()} impressions</Badge>
+                            <Badge variant="secondary">{Number(ad.clicks_count ?? 0).toLocaleString()} clicks</Badge>
+                            <Badge variant="outline">Max {ad.max_impressions_per_user ?? 3}/user</Badge>
+                            <Badge variant="outline">{ad.cooldown_hours ?? 24}h cooldown</Badge>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap gap-2 lg:justify-end">
+                        {/* Quick Approval / Rejection Action buttons */}
+                        {ad.status !== "active" && (
+                          <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs gap-1" onClick={() => approveAd(ad)}>
+                            <CheckCircle2 className="w-3.5 h-3.5" /> Approve Live
+                          </Button>
                         )}
-                      </div>
-                      <div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <h3 className="font-semibold">{ad.title}</h3>
-                          <Badge variant={ad.status === "active" ? "default" : "secondary"}>{ad.status}</Badge>
-                          <Badge variant={ad.payment_status === "paid" ? "secondary" : "destructive"}>{ad.payment_status}</Badge>
-                        </div>
-                        <p className="text-sm text-muted-foreground">Sponsor: {ad.sponsor_name}</p>
-                        <p className="mt-1 max-w-2xl text-sm">{ad.description}</p>
-                        <div className="mt-3 flex flex-wrap gap-2 text-xs">
-                          <Badge variant="outline">{ad.target_scope || ad.placement_type}</Badge>
-                          {ad.geo_region && <Badge variant="outline">{ad.geo_region}</Badge>}
-                          <Badge variant="secondary">{Number(ad.impressions_count ?? 0).toLocaleString()} impressions</Badge>
-                          <Badge variant="secondary">{Number(ad.clicks_count ?? 0).toLocaleString()} clicks</Badge>
-                          <Badge variant="outline">Max {ad.max_impressions_per_user ?? 3}/user</Badge>
-                          <Badge variant="outline">{ad.cooldown_hours ?? 24}h cooldown</Badge>
-                        </div>
+                        {ad.status !== "rejected" && (
+                          <Button size="sm" variant="destructive" className="text-xs gap-1" onClick={() => rejectAdAndRefund(ad)}>
+                            <XCircle className="w-3.5 h-3.5" /> Reject (24-48h Refund)
+                          </Button>
+                        )}
+
+                        <Button variant="outline" size="sm" onClick={() => toggleAdStatus(ad)}>
+                          {ad.status === "active" ? <PauseCircle className="mr-1 h-4 w-4" /> : <PlayCircle className="mr-1 h-4 w-4" />}
+                          {ad.status === "active" ? "Pause" : "Activate"}
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={() => openAdDialog(ad)}>
+                          <Pencil className="mr-1 h-4 w-4" />
+                          Edit
+                        </Button>
+                        <Button variant="destructive" size="sm" onClick={() => deleteAd(ad)}>
+                          <Trash2 className="mr-1 h-4 w-4" />
+                          Delete
+                        </Button>
                       </div>
                     </div>
-                    <div className="flex flex-wrap gap-2 lg:justify-end">
-                      <Button variant="outline" size="sm" onClick={() => toggleAdStatus(ad)}>
-                        {ad.status === "active" ? <PauseCircle className="mr-1 h-4 w-4" /> : <PlayCircle className="mr-1 h-4 w-4" />}
-                        {ad.status === "active" ? "Pause" : "Activate"}
-                      </Button>
-                      <Button variant="outline" size="sm" onClick={() => openAdDialog(ad)}>
-                        <Pencil className="mr-1 h-4 w-4" />
-                        Edit
-                      </Button>
-                      <Button variant="destructive" size="sm" onClick={() => deleteAd(ad)}>
-                        <Trash2 className="mr-1 h-4 w-4" />
-                        Delete
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))
+                  </CardContent>
+                </Card>
+              ))
           )}
+        </TabsContent>
+
+        {/* PRICING & PLATFORM ECONOMICS TAB */}
+        <TabsContent value="pricing" className="space-y-4">
+          <Card className="glass-card">
+            <CardHeader>
+              <CardTitle className="text-lg font-display flex items-center gap-2">
+                <DollarSign className="w-5 h-5 text-emerald-500" />
+                Platform Economics, Fee Defaults &amp; Agent Quotas
+              </CardTitle>
+              <CardDescription>
+                Customize platform monetization levers, ad pricing tiers, SecurePay protection rates, and agent listing quotas.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Ad Pricing Levers */}
+              <div className="space-y-3">
+                <h3 className="text-sm font-semibold flex items-center gap-1.5 text-primary">
+                  <Megaphone className="w-4 h-4" /> Ad Placement Campaign Pricing (NGN)
+                </h3>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div>
+                    <Label className="text-xs">Local (1 Day)</Label>
+                    <Input
+                      type="number"
+                      value={pricingSettings.adLocal1Day}
+                      onChange={(e) => setPricingSettings({ ...pricingSettings, adLocal1Day: e.target.value })}
+                      className="text-xs mt-1"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Local (2 Days)</Label>
+                    <Input
+                      type="number"
+                      value={pricingSettings.adLocal2Days}
+                      onChange={(e) => setPricingSettings({ ...pricingSettings, adLocal2Days: e.target.value })}
+                      className="text-xs mt-1"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Local (3 Days)</Label>
+                    <Input
+                      type="number"
+                      value={pricingSettings.adLocal3Days}
+                      onChange={(e) => setPricingSettings({ ...pricingSettings, adLocal3Days: e.target.value })}
+                      className="text-xs mt-1"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Local (1 Week)</Label>
+                    <Input
+                      type="number"
+                      value={pricingSettings.adLocal1Week}
+                      onChange={(e) => setPricingSettings({ ...pricingSettings, adLocal1Week: e.target.value })}
+                      className="text-xs mt-1"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 pt-1">
+                  <div>
+                    <Label className="text-xs">Global Nationwide (1 Day)</Label>
+                    <Input
+                      type="number"
+                      value={pricingSettings.adGlobal1Day}
+                      onChange={(e) => setPricingSettings({ ...pricingSettings, adGlobal1Day: e.target.value })}
+                      className="text-xs mt-1"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Global Nationwide (1 Week)</Label>
+                    <Input
+                      type="number"
+                      value={pricingSettings.adGlobal1Week}
+                      onChange={(e) => setPricingSettings({ ...pricingSettings, adGlobal1Week: e.target.value })}
+                      className="text-xs mt-1"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Agent Quotas & Verification */}
+              <div className="space-y-3 pt-3 border-t border-border/40">
+                <h3 className="text-sm font-semibold flex items-center gap-1.5 text-amber-500">
+                  <CreditCard className="w-4 h-4" /> Verified Agent Fees &amp; Posting Limits
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <Label className="text-xs">Agent Verification Fee (₦)</Label>
+                    <Input
+                      type="number"
+                      value={pricingSettings.agentVerificationFee}
+                      onChange={(e) => setPricingSettings({ ...pricingSettings, agentVerificationFee: e.target.value })}
+                      className="text-xs mt-1"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Agent Daily Post Limit</Label>
+                    <Input
+                      type="number"
+                      value={pricingSettings.agentDailyPostLimit}
+                      onChange={(e) => setPricingSettings({ ...pricingSettings, agentDailyPostLimit: e.target.value })}
+                      className="text-xs mt-1"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Agent Monthly Post Limit</Label>
+                    <Input
+                      type="number"
+                      value={pricingSettings.agentMonthlyPostLimit}
+                      onChange={(e) => setPricingSettings({ ...pricingSettings, agentMonthlyPostLimit: e.target.value })}
+                      className="text-xs mt-1"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* SecurePay & Commissions */}
+              <div className="space-y-3 pt-3 border-t border-border/40">
+                <h3 className="text-sm font-semibold flex items-center gap-1.5 text-emerald-500">
+                  <Sliders className="w-4 h-4" /> SecurePay Protection &amp; Commissions
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <Label className="text-xs">SecurePay Buyer Protection Fee (%)</Label>
+                    <Input
+                      type="number"
+                      step="0.5"
+                      value={pricingSettings.securePayFeePercent}
+                      onChange={(e) => setPricingSettings({ ...pricingSettings, securePayFeePercent: e.target.value })}
+                      className="text-xs mt-1"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Marketplace Seller Commission (%)</Label>
+                    <Input
+                      type="number"
+                      value={pricingSettings.marketplaceCommission}
+                      onChange={(e) => setPricingSettings({ ...pricingSettings, marketplaceCommission: e.target.value })}
+                      className="text-xs mt-1"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Default Support WhatsApp Hotline</Label>
+                    <Input
+                      type="text"
+                      value={pricingSettings.supportHotline}
+                      onChange={(e) => setPricingSettings({ ...pricingSettings, supportHotline: e.target.value })}
+                      className="text-xs mt-1 font-mono"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-2">
+                <Button onClick={savePricingSettings} className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-6 h-10 rounded-xl gap-2 shadow-md">
+                  <CheckCircle2 className="w-4 h-4" /> Save Economics Configuration
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="referrals" className="space-y-4">

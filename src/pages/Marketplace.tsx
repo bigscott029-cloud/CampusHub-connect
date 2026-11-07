@@ -17,6 +17,8 @@ import {
   Shirt,
   ShieldCheck,
   ShoppingBag,
+  Building2,
+  Lock,
   Smartphone,
   Sofa,
   Upload,
@@ -27,6 +29,8 @@ import {
 import { toast } from "sonner";
 
 import InlineAdCard from "@/components/ads/InlineAdCard";
+import { SecurePayModal } from "@/components/marketplace/SecurePayModal";
+import { VendorPayoutSettings } from "@/components/marketplace/VendorPayoutSettings";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -129,6 +133,8 @@ const Marketplace = () => {
   const [favorites, setFavorites] = useState<string[]>([]);
   const [detailOpen, setDetailOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<MarketplaceProduct | null>(null);
+  const [securePayOpen, setSecurePayOpen] = useState(false);
+  const [vendorPayoutOpen, setVendorPayoutOpen] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
   const [priceRange, setPriceRange] = useState([0, 500000]);
   const [filterCondition, setFilterCondition] = useState("all");
@@ -451,6 +457,9 @@ const Marketplace = () => {
         <Button variant="outline" onClick={() => setAgentOpen(true)}>
           <ShieldCheck className="mr-1 h-4 w-4" />Become Agent
         </Button>
+        <Button variant="outline" onClick={() => setVendorPayoutOpen(true)}>
+          <Building2 className="mr-1 h-4 w-4" />Payout Bank
+        </Button>
       </div>
 
       <Card className="glass-card">
@@ -496,13 +505,33 @@ const Marketplace = () => {
                 </div>
                 <CardContent className="p-3">
                   <h3 className="line-clamp-2 text-sm font-semibold">{product.title}</h3>
-                  <p className="mt-1 text-lg font-bold text-primary">{product.priceFormatted}</p>
+                  <div className="flex items-center justify-between mt-1">
+                    <p className="text-lg font-bold text-primary">{product.priceFormatted}</p>
+                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-emerald-500/40 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10">
+                      <ShieldCheck className="h-2.5 w-2.5 mr-0.5" />Escrow
+                    </Badge>
+                  </div>
                   <div className="mt-2 flex items-center gap-1 text-xs text-muted-foreground"><MapPin className="h-3 w-3" />{product.location}</div>
-                  <div className="mt-3 flex items-center justify-between border-t border-border/50 pt-3">
+                  <div className="mt-3 flex items-center justify-between border-t border-border/50 pt-2.5">
                     <div className="flex items-center gap-1 text-xs text-muted-foreground"><Clock className="h-3 w-3" />{product.posted}</div>
-                    <Button variant="ghost" size="sm" className="h-7 px-2" onClick={(event) => { event.stopPropagation(); navigate(`/messages?to=${product.sellerId}&message=Hi, I'm interested in "${product.title}"`); }}>
-                      <MessageCircle className="h-3 w-3" />
-                    </Button>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2 text-emerald-600 dark:text-emerald-400 hover:text-emerald-700"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setSelectedProduct(product);
+                          setSecurePayOpen(true);
+                        }}
+                        title="Buy with SecurePay Escrow"
+                      >
+                        <Lock className="h-3 w-3 mr-1" /><span className="text-[11px] font-medium">Buy</span>
+                      </Button>
+                      <Button variant="ghost" size="sm" className="h-7 px-2" onClick={(event) => { event.stopPropagation(); navigate(`/messages?to=${product.sellerId}&message=Hi, I'm interested in "${product.title}"`); }}>
+                        <MessageCircle className="h-3 w-3" />
+                      </Button>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -564,12 +593,23 @@ const Marketplace = () => {
                 <Avatar className="h-10 w-10"><AvatarFallback className="bg-primary/10 text-primary">{selectedProduct.seller.charAt(0)}</AvatarFallback></Avatar>
                 <div className="flex-1"><p className="text-sm font-medium">{selectedProduct.seller}</p><p className="text-xs text-muted-foreground">Posted {selectedProduct.posted}</p></div>
               </div>
-              <div className="flex gap-2">
-                <Button variant="outline" className="flex-1" disabled={!selectedProduct.phone} onClick={() => window.open(`tel:${selectedProduct.phone}`)}>
+              <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                  <span className="text-muted-foreground">
+                    Protected by <strong className="text-foreground">CampusHub SecurePay</strong> escrow. Funds held safely until you verify the item.
+                  </span>
+                </div>
+              </div>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <Button variant="outline" className="sm:flex-1" disabled={!selectedProduct.phone} onClick={() => window.open(`tel:${selectedProduct.phone}`)}>
                   <Phone className="mr-2 h-4 w-4" />Call
                 </Button>
-                <Button variant="hero" className="flex-1" onClick={() => { setDetailOpen(false); navigate(`/messages?to=${selectedProduct.sellerId}&message=Hi, I'm interested in "${selectedProduct.title}"`); }}>
+                <Button variant="outline" className="sm:flex-1" onClick={() => { setDetailOpen(false); navigate(`/messages?to=${selectedProduct.sellerId}&message=Hi, I'm interested in "${selectedProduct.title}"`); }}>
                   <MessageCircle className="mr-2 h-4 w-4" />Message
+                </Button>
+                <Button variant="hero" className="sm:flex-1 gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm" onClick={() => { setDetailOpen(false); setSecurePayOpen(true); }}>
+                  <Lock className="h-4 w-4" />Buy with SecurePay
                 </Button>
               </div>
             </div>
@@ -750,6 +790,28 @@ const Marketplace = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      <SecurePayModal
+        open={securePayOpen}
+        onOpenChange={setSecurePayOpen}
+        product={
+          selectedProduct
+            ? {
+                id: selectedProduct.id,
+                title: selectedProduct.title,
+                price: selectedProduct.price,
+                sellerId: selectedProduct.sellerId,
+                sellerName: selectedProduct.seller,
+                sellerPhone: selectedProduct.phone,
+              }
+            : null
+        }
+      />
+
+      <VendorPayoutSettings
+        open={vendorPayoutOpen}
+        onOpenChange={setVendorPayoutOpen}
+      />
     </div>
   );
 };

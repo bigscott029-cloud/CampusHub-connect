@@ -77,7 +77,7 @@ export const getBackupPaymentDmUrl = ({
   customerName,
   paymentReference,
 }: PaymentLinkOptions) => {
-  const backupUrl = (import.meta.env.VITE_BACKUP_PAYMENT_DM_URL as string | undefined) || "https://wa.me/2347074474275";
+  const backupUrl = (import.meta.env.VITE_BACKUP_PAYMENT_DM_URL as string | undefined) || "https://wa.me/2348051454564";
   const currency = (import.meta.env.VITE_FLUTTERWAVE_CURRENCY as string | undefined) || "NGN";
   const amount = getEnforcedPaymentAmount(purpose, customAmount);
   const reference = paymentReference || formatPaymentReference(purpose, referenceId);

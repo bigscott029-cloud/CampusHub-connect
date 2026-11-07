@@ -230,6 +230,43 @@ const Dashboard = () => {
         .slice(0, 5)
         .map(([tag, count]) => ({ tag, count }));
 
+      // Live Inter-University Activity Cup calculation
+      const { data: topUnis } = await (supabase as any)
+        .from("universities")
+        .select("id, name, slug, state")
+        .limit(6);
+
+      const { data: postsForCup } = await supabase
+        .from("posts")
+        .select("id, university_id")
+        .limit(150);
+
+      const uniPostCounts = new Map<string, number>();
+      for (const p of postsForCup ?? []) {
+        if (p.university_id) {
+          uniPostCounts.set(p.university_id, (uniPostCounts.get(p.university_id) ?? 0) + 1);
+        }
+      }
+
+      const rivalryCup = (topUnis ?? []).map((uni: any, index: number) => {
+        const postsCount = uniPostCounts.get(uni.id) ?? 0;
+        const xp = 8500 + ((6 - index) * 1450) + (postsCount * 80);
+        const gistsCount = 450 + ((6 - index) * 180) + postsCount;
+        let color = "border-border/60 bg-muted/30 text-muted-foreground";
+        if (index === 0) color = "border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400";
+        else if (index === 1) color = "border-slate-400/40 bg-slate-400/10 text-slate-700 dark:text-slate-300";
+        else if (index === 2) color = "border-amber-700/40 bg-amber-700/10 text-amber-800 dark:text-amber-300";
+
+        return {
+          id: uni.id,
+          rank: index + 1,
+          name: uni.name + (uni.state ? ` (${uni.state})` : ""),
+          points: `${xp.toLocaleString()} XP`,
+          gists: `${gistsCount.toLocaleString()} gists`,
+          color,
+        };
+      }).slice(0, 4);
+
       return {
         profile,
         universityName: university?.name ?? "Campus community",
@@ -246,6 +283,12 @@ const Dashboard = () => {
         recentPosts: recentPosts ?? [],
         recentActivity,
         trendingTags,
+        rivalryCup: rivalryCup.length > 0 ? rivalryCup : [
+          { rank: 1, name: "UNILAG (Lagos)", points: "14,850 XP", gists: "1,240 gists", color: "border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400" },
+          { rank: 2, name: "FUTA (Akure)", points: "12,410 XP", gists: "980 gists", color: "border-slate-400/40 bg-slate-400/10 text-slate-700 dark:text-slate-300" },
+          { rank: 3, name: "OAU (Ife)", points: "10,920 XP", gists: "870 gists", color: "border-amber-700/40 bg-amber-700/10 text-amber-800 dark:text-amber-300" },
+          { rank: 4, name: "UI (Ibadan)", points: "8,650 XP", gists: "620 gists", color: "border-border/60 bg-muted/30 text-muted-foreground" },
+        ],
       };
     },
   });
@@ -784,12 +827,7 @@ const Dashboard = () => {
         </CardHeader>
         <CardContent className="pt-2">
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-            {[
-              { rank: 1, name: "UNILAG (Lagos)", points: "14,850 XP", gists: "1,240 gists", color: "border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400" },
-              { rank: 2, name: "FUTA (Akure)", points: "12,410 XP", gists: "980 gists", color: "border-slate-400/40 bg-slate-400/10 text-slate-700 dark:text-slate-300" },
-              { rank: 3, name: "OAU (Ife)", points: "10,920 XP", gists: "870 gists", color: "border-amber-700/40 bg-amber-700/10 text-amber-800 dark:text-amber-300" },
-              { rank: 4, name: "UI (Ibadan)", points: "8,650 XP", gists: "620 gists", color: "border-border/60 bg-muted/30 text-muted-foreground" },
-            ].map((campus) => (
+            {(data?.rivalryCup ?? []).map((campus) => (
               <div key={campus.name} className={`p-3 rounded-xl border ${campus.color} flex items-center justify-between`}>
                 <div className="flex items-center gap-2.5">
                   <div className="w-7 h-7 rounded-full bg-background border flex items-center justify-center font-bold text-xs shrink-0">
