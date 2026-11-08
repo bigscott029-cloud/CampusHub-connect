@@ -7,7 +7,7 @@ import {
   Heart,
   MessageCircle,
   Share2,
-  Sparkles,
+  Film,
   Compass,
   Flame,
   Users,
@@ -15,9 +15,10 @@ import {
   ChevronUp,
   ChevronDown,
   Megaphone,
-  School,
   ExternalLink,
   Plus,
+  Wrench,
+  School,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -25,6 +26,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ServicesNearMe } from "@/components/marketplace/ServicesNearMe";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCompactNumber, formatRelativeTime } from "@/lib/utils";
 
@@ -221,7 +223,7 @@ const Explore = () => {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full sm:w-auto">
-          <TabsList className="grid grid-cols-3 w-full sm:w-auto">
+          <TabsList className="grid grid-cols-2 sm:grid-cols-4 w-full sm:w-auto">
             <TabsTrigger value="reels" className="text-xs gap-1.5">
               <Play className="w-3.5 h-3.5 text-blue-500" />
               Reels Feed
@@ -234,6 +236,10 @@ const Explore = () => {
               <Users className="w-3.5 h-3.5 text-emerald-500" />
               Ambassadors
             </TabsTrigger>
+            <TabsTrigger value="services" className="text-xs gap-1.5">
+              <Wrench className="w-3.5 h-3.5 text-teal-500" />
+              Services Near Me
+            </TabsTrigger>
           </TabsList>
         </Tabs>
       </div>
@@ -243,7 +249,7 @@ const Explore = () => {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-amber-500" />
+              <Film className="w-4 h-4 text-amber-500" />
               <span className="text-sm font-semibold">Continuous Video Reels</span>
             </div>
             <span className="text-xs text-muted-foreground">Tap any video to expand continuous player</span>
@@ -368,6 +374,11 @@ const Explore = () => {
             </Card>
           ))}
         </div>
+      )}
+
+      {/* TAB 4: SERVICES NEAR ME */}
+      {activeTab === "services" && (
+        <ServicesNearMe />
       )}
 
       {/* ================= FULLSCREEN TIKTOK / X STYLE CONTINUOUS REEL MODAL ================= */}

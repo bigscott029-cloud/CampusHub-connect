@@ -139,18 +139,49 @@ const EditProfile = () => {
     loadProfile();
   }, [user]);
 
-  const handleAvatarUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (!file) return;
+    if (!file || !user) return;
 
-    const reader = new FileReader();
-    reader.onload = (loadEvent) => {
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Avatar image must be less than 5MB");
+      return;
+    }
+
+    try {
+      const fileExt = file.name.split(".").pop() || "jpg";
+      const filePath = `${user.id}/${Date.now()}.${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("avatars")
+        .upload(filePath, file, { upsert: true });
+
+      if (uploadError) {
+        // Fallback to data URL if bucket is not yet created
+        const reader = new FileReader();
+        reader.onload = (loadEvent) => {
+          setFormData((prev) => ({
+            ...prev,
+            avatarUrl: loadEvent.target?.result as string,
+          }));
+        };
+        reader.readAsDataURL(file);
+        return;
+      }
+
+      const { data: { publicUrl } } = supabase.storage
+        .from("avatars")
+        .getPublicUrl(filePath);
+
       setFormData((prev) => ({
         ...prev,
-        avatarUrl: loadEvent.target?.result as string,
+        avatarUrl: publicUrl,
       }));
-    };
-    reader.readAsDataURL(file);
+      toast.success("Profile photo uploaded!");
+    } catch (err: any) {
+      console.error("Avatar upload error:", err);
+      toast.error("Failed to upload avatar image");
+    }
   };
 
   const handleUniversitySelect = (value: string) => {

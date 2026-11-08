@@ -5,7 +5,6 @@ import {
   School,
   Store,
   Users,
-  Sparkles,
   ArrowRight,
   LogIn,
   UserPlus,
@@ -19,6 +18,7 @@ import {
   type AudiencePersona,
   getSavedAudience,
   setSavedAudience,
+  hasSeenSessionSplash,
   markSessionSplashSeen,
 } from "@/lib/pwa";
 
@@ -105,11 +105,25 @@ export const PWASplashScreen = ({ onDismiss, forceShow = false }: PWASplashScree
 
   const [phase, setPhase] = useState<"intro" | "persona">("intro");
   const [selectedPersona, setSelectedPersona] = useState<AudiencePersona>("student");
-  const [isOpen, setIsOpen] = useState(true);
+  const [isOpen, setIsOpen] = useState(() => {
+    if (forceShow) return true;
+    return !hasSeenSessionSplash();
+  });
 
   useEffect(() => {
-    const cached = getSavedAudience();
-    setSelectedPersona(cached);
+    let personaToUse: AudiencePersona = getSavedAudience();
+    if (user?.user_metadata?.user_type) {
+      const ut = user.user_metadata.user_type;
+      if (ut === "agent_trader" || ut === "trader" || ut === "agent") {
+        personaToUse = "trader_agent";
+      } else if (ut === "community" || ut === "regular") {
+        personaToUse = "community";
+      } else {
+        personaToUse = "student";
+      }
+      setSavedAudience(personaToUse);
+    }
+    setSelectedPersona(personaToUse);
 
     // 1.3s introductory signature logo animation then smoothly crossfade to persona card
     const timer = setTimeout(() => {
@@ -117,7 +131,7 @@ export const PWASplashScreen = ({ onDismiss, forceShow = false }: PWASplashScree
     }, 1300);
 
     return () => clearTimeout(timer);
-  }, []);
+  }, [user]);
 
   const handleSelectPersona = (p: AudiencePersona) => {
     setSelectedPersona(p);
@@ -261,7 +275,7 @@ export const PWASplashScreen = ({ onDismiss, forceShow = false }: PWASplashScree
                 className="space-y-3"
               >
                 <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/15 text-xs font-medium">
-                  <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                  <Compass className="w-3.5 h-3.5 text-blue-400" />
                   <span>Personalized Campus Mode</span>
                 </div>
 

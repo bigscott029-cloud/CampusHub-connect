@@ -234,11 +234,11 @@ const Signup = () => {
         variant: "destructive",
       });
     } else {
-      setShowVerificationModal(true);
       toast({
-        title: "Registration successful! 🎉",
-        description: "Please check your email for your 6-digit verification OTP.",
+        title: "Welcome to CampusHub! 🎉",
+        description: "Your campus account is ready. Redirecting to your continuous feed...",
       });
+      navigate("/feed", { replace: true });
     }
 
     setIsLoading(false);

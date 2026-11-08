@@ -18,7 +18,7 @@ import {
   ShieldCheck,
   TrendingUp,
   Award,
-  Sparkles,
+  Zap,
   ArrowRight,
   Send,
   UserCheck,
@@ -500,7 +500,7 @@ const Dashboard = () => {
             <Card className="glass-card">
               <CardHeader className="pb-3">
                 <CardTitle className="text-lg font-display flex items-center gap-2">
-                  <Sparkles className="w-5 h-5 text-amber-500" />
+                  <Zap className="w-5 h-5 text-amber-500" />
                   Interactive Shortcuts
                 </CardTitle>
                 <CardDescription>Instant actions ready for interaction</CardDescription>

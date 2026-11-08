@@ -114,9 +114,26 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return { error };
   };
 
-  const signIn = async (email: string, password: string) => {
+  const signIn = async (identifier: string, password: string) => {
+    let emailToUse = identifier.trim().toLowerCase();
+
+    // If identifier is a username (e.g. "@bigscott" or "bigscott")
+    if (!emailToUse.includes("@") || !emailToUse.includes(".")) {
+      try {
+        const { data: resolvedEmail } = await (supabase as any).rpc("resolve_login_email", {
+          identifier: emailToUse,
+        });
+
+        if (resolvedEmail && resolvedEmail.includes("@")) {
+          emailToUse = resolvedEmail;
+        }
+      } catch {
+        // Continue with original input
+      }
+    }
+
     const { error } = await supabase.auth.signInWithPassword({
-      email: email.trim().toLowerCase(),
+      email: emailToUse,
       password,
     });
     return { error };

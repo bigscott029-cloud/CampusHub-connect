@@ -17,7 +17,6 @@ import {
   Share2,
   CheckCheck,
   ShieldCheck,
-  Sparkles,
   UserCheck,
   ArrowLeft,
   Info,
@@ -32,6 +31,8 @@ import {
   Building,
   BellOff,
   Check,
+  BadgeCheck,
+  CornerDownRight,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -111,6 +112,8 @@ const Messages = () => {
   const [newChatDialogOpen, setNewChatDialogOpen] = useState(false);
   const [userSearchTerm, setUserSearchTerm] = useState("");
   const [profileModalOpen, setProfileModalOpen] = useState(false);
+  const [chatFilter, setChatFilter] = useState<"all" | "unread" | "groups">("all");
+  const [officialChannelOpen, setOfficialChannelOpen] = useState(false);
 
   // Blocked users set stored locally for rapid privacy enforcement
   const [blockedUsers, setBlockedUsers] = useState<string[]>(() => {
@@ -207,7 +210,7 @@ const Messages = () => {
       );
       const conversationIds = (conversations ?? []).map((conversation) => conversation.id);
 
-      const [{ data: profiles }, { data: latestMessages }] = await Promise.all([
+      const [{ data: profiles }, { data: latestMessages }, { data: unreadRows }] = await Promise.all([
         otherUserIds.length
           ? (supabase as any)
               .from("profiles")
@@ -221,12 +224,25 @@ const Messages = () => {
               .in("conversation_id", conversationIds)
               .order("created_at", { ascending: false })
           : Promise.resolve({ data: [] }),
+        conversationIds.length
+          ? supabase
+              .from("messages")
+              .select("conversation_id")
+              .in("conversation_id", conversationIds)
+              .neq("sender_id", user?.id)
+              .eq("is_read", false)
+          : Promise.resolve({ data: [] }),
       ]);
 
       const profileMap = new Map((profiles ?? []).map((profile: any) => [profile.user_id, profile]));
       const latestMap = new Map<string, any>();
       (latestMessages ?? []).forEach((message: any) => {
         if (!latestMap.has(message.conversation_id)) latestMap.set(message.conversation_id, message);
+      });
+
+      const unreadCountMap = new Map<string, number>();
+      (unreadRows ?? []).forEach((row: any) => {
+        unreadCountMap.set(row.conversation_id, (unreadCountMap.get(row.conversation_id) || 0) + 1);
       });
 
       return (conversations ?? []).map((conversation) => {
@@ -246,7 +262,7 @@ const Messages = () => {
           universityName: profile?.university_id ? "Verified Campus Member" : "Campus Community",
           lastMessage: latest?.content || "Tap to start conversation",
           time: latest?.created_at ? formatRelativeTime(latest.created_at) : "New",
-          unread: 0,
+          unread: unreadCountMap.get(conversation.id) || 0,
           isOnline: true,
         };
       });
@@ -285,6 +301,38 @@ const Messages = () => {
       supabase.removeChannel(channel);
     };
   }, [queryClient]);
+
+  // Listen for bottom dock navigation tap to exit active chat to conversation list
+  useEffect(() => {
+    const handleReset = () => {
+      setSelectedChat(null);
+    };
+    window.addEventListener("campushub:reset-chat-selection", handleReset);
+    return () => window.removeEventListener("campushub:reset-chat-selection", handleReset);
+  }, []);
+
+  // When a chat is selected, mark all unread messages in this conversation as read
+  useEffect(() => {
+    if (!selectedChat || !user?.id) return;
+    const markAsRead = async () => {
+      try {
+        const { error } = await supabase
+          .from("messages")
+          .update({ is_read: true })
+          .eq("conversation_id", selectedChat)
+          .neq("sender_id", user.id)
+          .eq("is_read", false);
+
+        if (!error) {
+          queryClient.invalidateQueries({ queryKey: ["bottom-nav-unread", user.id] });
+          queryClient.invalidateQueries({ queryKey: ["conversations"] });
+        }
+      } catch {
+        // non-blocking
+      }
+    };
+    markAsRead();
+  }, [selectedChat, user?.id, queryClient]);
 
   const startConversationMutation = useMutation({
     mutationFn: async ({ target, prefill }: { target: string; prefill?: string | null }) => {
@@ -402,14 +450,26 @@ const Messages = () => {
   const isOtherUserBlocked = Boolean(selectedConversation && blockedUsers.includes(selectedConversation.otherUserId));
   const isOtherUserFriend = Boolean(selectedConversation && followingUsers.includes(selectedConversation.otherUserId));
 
+  const totalUnreadCount = useMemo(
+    () => conversations.reduce((acc, c) => acc + (c.unread || 0), 0),
+    [conversations],
+  );
+
   const filteredConversations = useMemo(
     () =>
-      conversations.filter(
-        (conversation) =>
+      conversations.filter((conversation) => {
+        const matchesSearch =
           conversation.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          conversation.handle.toLowerCase().includes(searchQuery.toLowerCase()),
-      ),
-    [conversations, searchQuery],
+          conversation.handle.toLowerCase().includes(searchQuery.toLowerCase());
+        if (!matchesSearch) return false;
+
+        if (chatFilter === "unread") return (conversation.unread || 0) > 0;
+        if (chatFilter === "groups") {
+          return conversation.userType === "group" || conversation.userType === "agent_trader";
+        }
+        return true;
+      }),
+    [conversations, searchQuery, chatFilter],
   );
 
   const handleKeyPress = (event: React.KeyboardEvent) => {
@@ -491,21 +551,86 @@ const Messages = () => {
             {/* CHATS TAB */}
             {activeTab === "chats" && (
               <>
+                {/* WhatsApp-Style Filter Pills */}
+                <div className="flex items-center gap-1.5 px-1 py-1.5 border-b border-border/40 mb-1">
+                  {(["all", "unread", "groups"] as const).map((filter) => (
+                    <button
+                      key={filter}
+                      type="button"
+                      onClick={() => setChatFilter(filter)}
+                      className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${
+                        chatFilter === filter
+                          ? "bg-emerald-600 text-white shadow-xs font-semibold"
+                          : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground"
+                      }`}
+                    >
+                      {filter === "all" ? "All" : filter === "unread" ? "Unread" : "Groups"}
+                      {filter === "unread" && totalUnreadCount > 0 && (
+                        <span className="ml-1 px-1.5 py-0.2 text-[10px] rounded-full bg-white text-emerald-700 font-bold">
+                          {totalUnreadCount}
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Verified @campushubofficial Broadcast Channel */}
+                {chatFilter !== "unread" && (
+                  <button
+                    type="button"
+                    onClick={() => setOfficialChannelOpen(true)}
+                    className="flex w-full items-center gap-3 rounded-xl p-3 transition-all hover:bg-primary/10 border border-primary/25 bg-primary/5 text-left mb-1.5 group"
+                  >
+                    <div className="relative shrink-0">
+                      <div className="h-11 w-11 rounded-full bg-gradient-to-tr from-primary via-emerald-600 to-teal-500 flex items-center justify-center text-primary-foreground font-bold shadow-xs">
+                        <ShieldCheck className="h-6 w-6" />
+                      </div>
+                      <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 rounded-full border-2 border-background" />
+                    </div>
+
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1">
+                          <p className="truncate text-sm font-bold text-foreground">CampusHub Official</p>
+                          <BadgeCheck className="w-4 h-4 text-primary shrink-0" />
+                        </div>
+                        <Badge variant="secondary" className="text-[10px] py-0 px-1.5 bg-primary/10 text-primary border-primary/20 font-semibold">
+                          Broadcast
+                        </Badge>
+                      </div>
+                      <div className="flex items-center justify-between mt-0.5">
+                        <p className="truncate text-xs text-muted-foreground max-w-[190px]">
+                          Official notices, security updates & campus alerts
+                        </p>
+                        <span className="text-[10px] text-primary font-medium group-hover:underline">
+                          View
+                        </span>
+                      </div>
+                    </div>
+                  </button>
+                )}
+
                 {filteredConversations.length === 0 ? (
                   <div className="p-6 text-center text-sm text-muted-foreground">
                     <MessageSquarePlus className="mx-auto mb-2 h-10 w-10 text-muted-foreground/60" />
-                    <p className="font-medium">No active chats found.</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      Search campus directory to start a new chat.
+                    <p className="font-medium">
+                      {chatFilter === "unread" ? "No unread messages." : "No active chats found."}
                     </p>
-                    <Button
-                      size="sm"
-                      variant="hero"
-                      className="mt-3 text-xs gap-1"
-                      onClick={() => setNewChatDialogOpen(true)}
-                    >
-                      <UserPlus className="w-3.5 h-3.5" /> Look Up Students
-                    </Button>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {chatFilter === "unread"
+                        ? "You are all caught up!"
+                        : "Search campus directory to start a new chat."}
+                    </p>
+                    {chatFilter !== "unread" && (
+                      <Button
+                        size="sm"
+                        variant="hero"
+                        className="mt-3 text-xs gap-1"
+                        onClick={() => setNewChatDialogOpen(true)}
+                      >
+                        <UserPlus className="w-3.5 h-3.5" /> Look Up Students
+                      </Button>
+                    )}
                   </div>
                 ) : (
                   filteredConversations.map((conversation) => (
@@ -516,7 +641,7 @@ const Messages = () => {
                         selectedChat === conversation.id ? "bg-primary/10 border border-primary/30" : ""
                       }`}
                     >
-                      <div className="relative">
+                      <div className="relative shrink-0">
                         <Avatar className="h-11 w-11 border border-border">
                           {conversation.avatarUrl && <AvatarImage src={conversation.avatarUrl} alt={conversation.name} />}
                           <AvatarFallback className="bg-primary/10 text-primary font-bold">
@@ -539,9 +664,16 @@ const Messages = () => {
                               conversation.lastMessage
                             )}
                           </p>
-                          <Badge variant="outline" className="text-[10px] py-0 px-1.5 uppercase font-mono">
-                            {conversation.userType === "agent_trader" ? "Vendor" : "Student"}
-                          </Badge>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {conversation.unread > 0 && (
+                              <span className="inline-flex items-center justify-center h-4.5 min-w-[18px] px-1 rounded-full bg-emerald-600 text-white font-bold text-[10px]">
+                                {conversation.unread}
+                              </span>
+                            )}
+                            <Badge variant="outline" className="text-[10px] py-0 px-1.5 uppercase font-mono">
+                              {conversation.userType === "agent_trader" ? "Vendor" : "Student"}
+                            </Badge>
+                          </div>
                         </div>
                       </div>
                     </button>
@@ -800,12 +932,50 @@ const Messages = () => {
                           isMine ? `rounded-br-none ${themeStyle}` : `rounded-bl-none ${themeStyle}`
                         }`}
                       >
-                        <p className="text-xs sm:text-sm leading-relaxed whitespace-pre-wrap">{message.content}</p>
+                        {/* Telegram/WhatsApp Quoted Reply Card Header */}
+                        {(() => {
+                          const isQuoted =
+                            message.content.startsWith("[Status Reply]") ||
+                            message.content.startsWith("[Post Reply]") ||
+                            message.content.startsWith("Replying to:");
+
+                          if (isQuoted) {
+                            const lines = message.content.split("\n");
+                            const header = lines[0];
+                            const body = lines.slice(1).join("\n").trim();
+                            return (
+                              <div className="space-y-1.5">
+                                <div
+                                  className={`p-2 rounded-lg text-[11px] border-l-4 ${
+                                    isMine
+                                      ? "bg-black/20 border-white/80 text-white/95"
+                                      : "bg-muted/80 border-primary text-foreground"
+                                  }`}
+                                >
+                                  <div className="font-semibold flex items-center gap-1">
+                                    <CornerDownRight className="w-3.5 h-3.5 shrink-0" />
+                                    <span>{header}</span>
+                                  </div>
+                                </div>
+                                <p className="text-xs sm:text-sm leading-relaxed whitespace-pre-wrap">{body || header}</p>
+                              </div>
+                            );
+                          }
+                          return (
+                            <p className="text-xs sm:text-sm leading-relaxed whitespace-pre-wrap">{message.content}</p>
+                          );
+                        })()}
+
                         <div
                           className={`flex items-center justify-end gap-1 mt-1 text-[10px] ${
                             isMine ? "text-white/80" : "text-muted-foreground"
                           }`}
                         >
+                          {message.view_once && (
+                            <span className="px-1.5 py-0.2 rounded-full bg-black/20 font-mono text-[9px] mr-1">
+                              ① View Once
+                            </span>
+                          )}
                           <span>{formatRelativeTime(message.created_at)}</span>
                           {isMine && <CheckCheck className="w-3.5 h-3.5" />}
                         </div>
@@ -823,11 +993,11 @@ const Messages = () => {
                   Unblock {selectedConversation.name} to send a message.
                 </div>
               ) : (
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   <div className="flex items-center gap-1.5 sm:gap-2">
                     <Popover open={emojiOpen} onOpenChange={setEmojiOpen}>
                       <PopoverTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0 text-muted-foreground">
+                        <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0 text-muted-foreground hover:text-foreground">
                           <Smile className="h-5 w-5" />
                         </Button>
                       </PopoverTrigger>
@@ -849,6 +1019,20 @@ const Messages = () => {
                       className="flex-1 text-xs sm:text-sm h-10 bg-background"
                     />
 
+                    {/* Circular View-Once Button (WhatsApp/Telegram Style) */}
+                    <button
+                      type="button"
+                      onClick={() => setViewOnce((prev) => !prev)}
+                      title={viewOnce ? "View-Once enabled (message opens once)" : "Enable View-Once"}
+                      className={`h-9 w-9 shrink-0 rounded-full flex items-center justify-center text-xs font-bold transition-all border ${
+                        viewOnce
+                          ? "bg-primary text-primary-foreground border-primary shadow-xs ring-2 ring-primary/30"
+                          : "bg-muted/60 text-muted-foreground border-border/80 hover:bg-muted hover:text-foreground"
+                      }`}
+                    >
+                      ①
+                    </button>
+
                     <Button
                       variant="hero"
                       size="icon"
@@ -860,26 +1044,21 @@ const Messages = () => {
                     </Button>
                   </div>
 
-                  {/* Disappearing & View-Once privacy toggles */}
-                  <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-1 px-1">
-                    <div className="flex items-center gap-3">
-                      <label className="flex items-center gap-1.5 cursor-pointer">
-                        <Switch
-                          checked={disappearingEnabled}
-                          onCheckedChange={setDisappearingEnabled}
-                          className="scale-75"
-                        />
-                        <span>24h Auto-delete</span>
-                      </label>
-                      <label className="flex items-center gap-1.5 cursor-pointer">
-                        <Switch
-                          checked={viewOnce}
-                          onCheckedChange={setViewOnce}
-                          className="scale-75"
-                        />
-                        <span>View-once</span>
-                      </label>
-                    </div>
+                  {/* Clean Bottom Helper Bar */}
+                  <div className="flex items-center justify-between text-[11px] text-muted-foreground px-1">
+                    {viewOnce ? (
+                      <span className="text-primary font-medium flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+                        View-Once message active
+                      </span>
+                    ) : disappearingEnabled ? (
+                      <span className="text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                        24h Auto-delete active
+                      </span>
+                    ) : (
+                      <span />
+                    )}
                     <span className="hidden sm:inline font-mono text-[10px]">Press Enter ↵ to send</span>
                   </div>
                 </div>
@@ -970,8 +1149,25 @@ const Messages = () => {
                 </div>
 
                 {/* Privacy & Safety Controls */}
-                <div className="space-y-2 pt-2 border-t border-border/50">
-                  <Label className="text-xs text-muted-foreground">Privacy & Moderation</Label>
+                <div className="space-y-3 pt-2 border-t border-border/50">
+                  <Label className="text-xs text-muted-foreground font-semibold">Privacy & Moderation</Label>
+
+                  {/* 24h Disappearing Messages Toggle */}
+                  <div className="flex items-center justify-between p-2.5 rounded-xl border border-border/60 bg-muted/30">
+                    <div className="space-y-0.5">
+                      <p className="text-xs font-semibold text-foreground">24h Auto-Delete Messages</p>
+                      <p className="text-[11px] text-muted-foreground">
+                        Messages sent disappear 24 hours after delivery.
+                      </p>
+                    </div>
+                    <Switch
+                      checked={disappearingEnabled}
+                      onCheckedChange={(checked) => {
+                        setDisappearingEnabled(checked);
+                        toast.info(checked ? "24h Auto-delete enabled for this chat" : "24h Auto-delete disabled");
+                      }}
+                    />
+                  </div>
 
                   {/* Block / Unblock Button */}
                   <Button
@@ -1082,6 +1278,77 @@ const Messages = () => {
               Cancel
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* VERIFIED @CAMPUSHUBOFFICIAL BROADCAST CHANNEL MODAL */}
+      <Dialog open={officialChannelOpen} onOpenChange={setOfficialChannelOpen}>
+        <DialogContent className="max-w-md p-0 overflow-hidden">
+          <div className="bg-gradient-to-r from-primary via-emerald-600 to-teal-500 p-5 text-white">
+            <div className="flex items-center gap-3">
+              <div className="h-12 w-12 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30 shadow-md">
+                <ShieldCheck className="h-7 w-7 text-white" />
+              </div>
+              <div>
+                <div className="flex items-center gap-1.5">
+                  <h3 className="font-display font-bold text-lg text-white">CampusHub Official</h3>
+                  <BadgeCheck className="h-4 w-4 text-white" />
+                </div>
+                <p className="text-xs text-white/90">@campushubofficial • Verified Channel</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="p-4 space-y-3.5 max-h-[60vh] overflow-y-auto">
+            <div className="p-3.5 rounded-xl border border-primary/20 bg-primary/5 space-y-1.5">
+              <div className="flex items-center justify-between">
+                <Badge variant="outline" className="text-[10px] bg-background text-primary border-primary/30">
+                  Campus Announcement
+                </Badge>
+                <span className="text-[10px] text-muted-foreground font-mono">Today</span>
+              </div>
+              <h4 className="font-semibold text-xs text-foreground">
+                CampusHub Production Launch & Safety Architecture
+              </h4>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Welcome to the high-performance CampusHub ecosystem. All marketplace transactions are protected by SecurePay Escrow. Direct student-to-student messages feature 24h auto-delete and view-once media for ultimate safety.
+              </p>
+            </div>
+
+            <div className="p-3.5 rounded-xl border border-emerald-500/20 bg-emerald-500/5 space-y-1.5">
+              <div className="flex items-center justify-between">
+                <Badge variant="outline" className="text-[10px] bg-background text-emerald-600 border-emerald-500/30">
+                  Support Hotline
+                </Badge>
+                <span className="text-[10px] text-muted-foreground font-mono">24/7 Verified</span>
+              </div>
+              <h4 className="font-semibold text-xs text-foreground">
+                Campus Executive Hotline & Escalations
+              </h4>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Need instant dispute mediation, verification support, or vendor onboarding assistance? Our direct WhatsApp line is ready: <strong>08051454564</strong> (+2348051454564).
+              </p>
+              <Button
+                size="sm"
+                variant="outline"
+                className="w-full text-xs gap-1.5 text-emerald-600 border-emerald-600/30 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 mt-1"
+                onClick={() =>
+                  window.open(
+                    "https://wa.me/2348051454564?text=Hello%20CampusHub%20Official%20Channel%20Support",
+                    "_blank",
+                  )
+                }
+              >
+                <ExternalLink className="w-3.5 h-3.5" /> Open WhatsApp Channel (08051454564)
+              </Button>
+            </div>
+          </div>
+
+          <div className="p-3 border-t bg-muted/20 flex justify-end">
+            <Button size="sm" variant="outline" onClick={() => setOfficialChannelOpen(false)}>
+              Close
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

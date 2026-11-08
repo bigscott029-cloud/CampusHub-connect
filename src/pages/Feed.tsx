@@ -12,7 +12,7 @@ import {
   Repeat2,
   Send,
   Share2,
-  Sparkles,
+  Radio,
   TrendingUp,
   UserCheck,
   UserPlus,
@@ -363,28 +363,28 @@ const Feed = () => {
   };
 
   return (
-    <div className="mx-auto max-w-3xl">
-      <div className="grid gap-6 lg:grid-cols-3">
-        <div className="space-y-6 lg:col-span-2">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl border module-gists">
+    <div className="mx-auto max-w-4xl w-full px-0 sm:px-2">
+      <div className="grid gap-6 lg:grid-cols-3 w-full">
+        <div className="space-y-4 sm:space-y-6 lg:col-span-2 w-full min-w-0">
+          <div className="flex items-center gap-3 px-1 sm:px-0">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl border module-gists shrink-0">
               <Flame className="h-5 w-5" />
             </div>
             <div>
-              <h1 className="text-2xl font-display font-bold">Campus Feed & Reels</h1>
-              <p className="text-sm text-muted-foreground">What's happening across campus in real time</p>
+              <h1 className="text-xl sm:text-2xl font-display font-bold">Campus Feed & Reels</h1>
+              <p className="text-xs sm:text-sm text-muted-foreground">What's happening across campus in real time</p>
             </div>
           </div>
 
-          <Card className="glass-card">
-            <CardContent className="pt-6">
+          <Card className="glass-card overflow-hidden">
+            <CardContent className="p-3.5 sm:p-6">
               <PostComposer onPostCreated={() => queryClient.invalidateQueries({ queryKey: ["feed-posts"] })} />
             </CardContent>
           </Card>
 
           <Tabs defaultValue="foryou">
             <TabsList className="bg-muted/50 p-1 flex-wrap h-auto">
-              <TabsTrigger value="foryou" className="gap-1"><Sparkles className="h-4 w-4" />For You</TabsTrigger>
+              <TabsTrigger value="foryou" className="gap-1"><Radio className="h-4 w-4 text-primary" />For You</TabsTrigger>
               <TabsTrigger value="reels" className="gap-1"><Film className="h-4 w-4 text-pink-500" />Campus Reels 🎬</TabsTrigger>
               <TabsTrigger value="trending" className="gap-1"><Flame className="h-4 w-4" />Trending</TabsTrigger>
               <TabsTrigger value="following" className="gap-1"><Clock className="h-4 w-4" />Following</TabsTrigger>
@@ -575,7 +575,7 @@ const Feed = () => {
       </div>
 
       <Dialog open={threadOpen} onOpenChange={setThreadOpen}>
-        <DialogContent className="flex max-h-[85vh] max-w-2xl flex-col">
+        <DialogContent className="flex max-h-[85vh] w-[calc(100vw-1.5rem)] sm:max-w-2xl flex-col p-4 sm:p-6">
           <DialogHeader><DialogTitle>Post Thread</DialogTitle></DialogHeader>
           {selectedPost && (
             <ScrollArea className="flex-1">

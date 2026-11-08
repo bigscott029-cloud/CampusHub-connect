@@ -31,6 +31,7 @@ import { toast } from "sonner";
 import InlineAdCard from "@/components/ads/InlineAdCard";
 import { SecurePayModal } from "@/components/marketplace/SecurePayModal";
 import { VendorPayoutSettings } from "@/components/marketplace/VendorPayoutSettings";
+import { ServicesNearMe } from "@/components/marketplace/ServicesNearMe";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -61,13 +62,13 @@ import { openFlutterwavePayment, type PaymentOpenResult } from "@/lib/payments";
 import { formatCurrency, formatRelativeTime } from "@/lib/utils";
 
 const categories = [
-  { id: "all", label: "All", icon: ShoppingBag },
+  { id: "all", label: "All Items", icon: ShoppingBag },
+  { id: "services", label: "Services Near Me", icon: Wrench },
   { id: "phones", label: "Phones", icon: Smartphone },
   { id: "laptops", label: "Laptops", icon: Laptop },
   { id: "books", label: "Books", icon: BookOpen },
   { id: "fashion", label: "Fashion", icon: Shirt },
   { id: "furniture", label: "Furniture", icon: Sofa },
-  { id: "services", label: "Services", icon: Wrench },
 ];
 
 interface MarketplaceProduct {
@@ -454,9 +455,6 @@ const Marketplace = () => {
         <Button variant="hero" onClick={() => { setSellOpen(true); setSellSubmitted(false); }}>
           <Plus className="mr-1 h-4 w-4" />Sell Something
         </Button>
-        <Button variant="outline" onClick={() => setAgentOpen(true)}>
-          <ShieldCheck className="mr-1 h-4 w-4" />Become Agent
-        </Button>
         <Button variant="outline" onClick={() => setVendorPayoutOpen(true)}>
           <Building2 className="mr-1 h-4 w-4" />Payout Bank
         </Button>
@@ -479,8 +477,13 @@ const Marketplace = () => {
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="bg-muted/50 p-1">
           <TabsTrigger value="browse" className="gap-1"><ShoppingBag className="h-4 w-4" />Browse</TabsTrigger>
+          <TabsTrigger value="services" className="gap-1"><Wrench className="h-4 w-4" />Services Near Me</TabsTrigger>
           <TabsTrigger value="requests" className="gap-1"><FileText className="h-4 w-4" />Requests</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="services" className="space-y-4">
+          <ServicesNearMe />
+        </TabsContent>
 
         <TabsContent value="browse" className="space-y-4">
           <div className="flex gap-2 overflow-x-auto pb-2">
@@ -491,7 +494,11 @@ const Marketplace = () => {
             ))}
           </div>
 
-          <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
+          {selectedCategory === "services" ? (
+            <ServicesNearMe />
+          ) : (
+            <>
+              <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
             {filteredProducts.map((product, index) => (
               <div key={product.id} className="contents">
                 {index > 0 && index % 6 === 0 && <InlineAdCard placement="marketplace" />}
@@ -545,6 +552,8 @@ const Marketplace = () => {
               <p className="text-muted-foreground">No items found. Try a different search or filter.</p>
               <Button variant="outline" className="mt-4" onClick={() => setRequestOpen(true)}>Post a Request</Button>
             </Card>
+          )}
+            </>
           )}
         </TabsContent>
 
@@ -756,40 +765,7 @@ const Marketplace = () => {
         </DialogContent>
       </Dialog>
 
-      <Dialog
-        open={agentOpen}
-        onOpenChange={(open) => {
-          setAgentOpen(open);
-          if (open) setAgentPayment(null);
-        }}
-      >
-        <DialogContent>
-          <DialogHeader><DialogTitle>Become a Verified Agent</DialogTitle></DialogHeader>
-          <div className="space-y-4">
-            <Card className="border-primary/20 bg-primary/5">
-              <CardContent className="py-3 text-sm text-muted-foreground">
-                Verified agents pay a one-time {formatCurrency(20000)} fee, then receive a blue verified badge after admin approval. Limits: 10 listings per day and 100 per month. Flutterwave checkout opens after submission when configured; otherwise CampusHub DM opens as the backup route.
-              </CardContent>
-            </Card>
-            {agentPayment && (
-              <Card className="border-success/30 bg-success/5">
-                <CardContent className="space-y-3 py-3 text-sm text-muted-foreground">
-                  <p>Your agent verification request has been saved. Complete payment {agentPayment.channel === "dm" ? "through CampusHub DM" : "through Flutterwave"} so admin can verify and activate the badge.</p>
-                  <Button variant="hero" className="w-full" onClick={() => window.open(agentPayment.url, "_blank", "noopener,noreferrer")}>
-                    {agentPayment.label}
-                  </Button>
-                </CardContent>
-              </Card>
-            )}
-            <div><Label>Legal Name *</Label><Input value={agentForm.legalName} onChange={(event) => setAgentForm({ ...agentForm, legalName: event.target.value })} placeholder="Your full legal name" /></div>
-            <div><Label>Phone Number *</Label><Input type="tel" value={agentForm.phone} onChange={(event) => setAgentForm({ ...agentForm, phone: event.target.value })} placeholder="+234..." /></div>
-            <div><Label>Business Name</Label><Input value={agentForm.businessName} onChange={(event) => setAgentForm({ ...agentForm, businessName: event.target.value })} placeholder="Optional" /></div>
-            <Button variant="hero" className="w-full" onClick={() => agentMutation.mutate()} disabled={agentMutation.isPending}>
-              {agentMutation.isPending ? "Submitting..." : "Submit Agent Request"}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+
 
       <SecurePayModal
         open={securePayOpen}

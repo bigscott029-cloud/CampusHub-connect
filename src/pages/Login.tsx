@@ -75,13 +75,15 @@ const Login = () => {
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="email">Email or Username</Label>
                 <Input
                   id="email"
-                  type="email"
-                  placeholder="you@university.edu"
+                  type="text"
+                  placeholder="you@university.edu or @username"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                  autoCapitalize="none"
+                  autoCorrect="off"
                   required
                 />
               </div>

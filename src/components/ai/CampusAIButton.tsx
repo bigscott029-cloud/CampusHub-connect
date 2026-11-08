@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Bot, Send, Sparkles, X, DollarSign, School, ShieldCheck, Megaphone, Hash, Users, BookOpen } from "lucide-react";
+import { Bot, Send, X, DollarSign, School, ShieldCheck, Megaphone, Hash, Users, BookOpen } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -99,7 +99,7 @@ const CampusAIButton = () => {
           <CardHeader className="flex-row items-center justify-between border-b bg-muted/40 py-3">
             <div className="flex items-center gap-2">
               <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-primary-foreground shadow">
-                <Sparkles className="h-4 w-4" />
+                <Bot className="h-4 w-4" />
               </div>
               <div>
                 <p className="font-semibold text-sm">Campus AI Assistant</p>

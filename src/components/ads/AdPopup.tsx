@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
-import { ExternalLink, Sparkles, X } from "lucide-react";
+import { ExternalLink, Megaphone, X } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -179,7 +179,7 @@ const AdPopup = () => {
           <Card className="glass-card overflow-hidden border-2 border-primary/20 shadow-lg">
             <div className="flex items-center justify-between border-b border-border/50 bg-muted/50 p-3">
               <div className="flex items-center gap-2">
-                <Badge variant="secondary" className="text-xs"><Sparkles className="mr-1 h-3 w-3" />Sponsored</Badge>
+                <Badge variant="secondary" className="text-xs"><Megaphone className="mr-1 h-3 w-3" />Sponsored</Badge>
                 <span className="text-xs capitalize text-muted-foreground">{currentAd.placement_type}</span>
               </div>
               <Button variant="ghost" size="icon" className="h-6 w-6" onClick={handleClose}><X className="h-4 w-4" /></Button>

@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { BrowserRouter, Routes, Route, useNavigate } from "react-router-dom";
 import { ThemeProvider } from "next-themes";
 import { AuthProvider } from "@/hooks/useAuth";
@@ -11,47 +11,47 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import AdminProtectedRoute from "@/components/AdminProtectedRoute";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import AdPopup from "@/components/ads/AdPopup";
-
-// Public pages
-import Index from "./pages/Index";
-import Login from "./pages/Login";
-import Signup from "./pages/Signup";
-import AuthCallback from "./pages/AuthCallback";
-import ForgotPassword from "./pages/ForgotPassword";
-import ResetPassword from "./pages/ResetPassword";
-import AdminLogin from "./pages/AdminLogin";
-import NotFound from "./pages/NotFound";
-import Features from "./pages/Features";
-import Universities from "./pages/Universities";
-import UniversityDetail from "./pages/UniversityDetail";
-import About from "./pages/About";
-import Safety from "./pages/Safety";
-import PrivacyPolicy from "./pages/PrivacyPolicy";
-import TermsOfService from "./pages/TermsOfService";
-import MarketplaceRules from "./pages/MarketplaceRules";
-
-// Protected pages
-import Dashboard from "./pages/Dashboard";
-import Feed from "./pages/Feed";
-import TrendingPosts from "./pages/TrendingPosts";
-import Anonymous from "./pages/Anonymous";
-import Hostel from "./pages/Hostel";
-import HostelDetail from "./pages/HostelDetail";
-import CreateHostelListing from "./pages/CreateHostelListing";
-import CreateRoommateRequest from "./pages/CreateRoommateRequest";
-import Marketplace from "./pages/Marketplace";
-import Messages from "./pages/Messages";
-import Groups from "./pages/Groups";
-import Academic from "./pages/Academic";
-import Notifications from "./pages/Notifications";
-import Profile from "./pages/Profile";
-import EditProfile from "./pages/EditProfile";
-import ReputationInfo from "./pages/ReputationInfo";
-import Settings from "./pages/Settings";
-import AdminPanel from "./pages/AdminPanel";
-import Explore from "./pages/Explore";
 import PWASplashScreen from "@/components/pwa/PWASplashScreen";
-import { isStandalonePWA, hasSeenSessionSplash } from "@/lib/pwa";
+import PageLoadingFallback from "@/components/common/PageLoadingFallback";
+
+// Public pages - lazy loaded
+const Index = lazy(() => import("./pages/Index"));
+const Login = lazy(() => import("./pages/Login"));
+const Signup = lazy(() => import("./pages/Signup"));
+const AuthCallback = lazy(() => import("./pages/AuthCallback"));
+const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
+const ResetPassword = lazy(() => import("./pages/ResetPassword"));
+const AdminLogin = lazy(() => import("./pages/AdminLogin"));
+const NotFound = lazy(() => import("./pages/NotFound"));
+const Features = lazy(() => import("./pages/Features"));
+const Universities = lazy(() => import("./pages/Universities"));
+const UniversityDetail = lazy(() => import("./pages/UniversityDetail"));
+const About = lazy(() => import("./pages/About"));
+const Safety = lazy(() => import("./pages/Safety"));
+const PrivacyPolicy = lazy(() => import("./pages/PrivacyPolicy"));
+const TermsOfService = lazy(() => import("./pages/TermsOfService"));
+const MarketplaceRules = lazy(() => import("./pages/MarketplaceRules"));
+
+// Protected pages - lazy loaded
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const Feed = lazy(() => import("./pages/Feed"));
+const TrendingPosts = lazy(() => import("./pages/TrendingPosts"));
+const Anonymous = lazy(() => import("./pages/Anonymous"));
+const Hostel = lazy(() => import("./pages/Hostel"));
+const HostelDetail = lazy(() => import("./pages/HostelDetail"));
+const CreateHostelListing = lazy(() => import("./pages/CreateHostelListing"));
+const CreateRoommateRequest = lazy(() => import("./pages/CreateRoommateRequest"));
+const Marketplace = lazy(() => import("./pages/Marketplace"));
+const Messages = lazy(() => import("./pages/Messages"));
+const Groups = lazy(() => import("./pages/Groups"));
+const Academic = lazy(() => import("./pages/Academic"));
+const Notifications = lazy(() => import("./pages/Notifications"));
+const Profile = lazy(() => import("./pages/Profile"));
+const EditProfile = lazy(() => import("./pages/EditProfile"));
+const ReputationInfo = lazy(() => import("./pages/ReputationInfo"));
+const Settings = lazy(() => import("./pages/Settings"));
+const AdminPanel = lazy(() => import("./pages/AdminPanel"));
+const Explore = lazy(() => import("./pages/Explore"));
 
 const queryClient = new QueryClient();
 
@@ -78,69 +78,72 @@ const App = () => (
             <Toaster />
             <Sonner />
             <BrowserRouter>
-          <SpaRedirectHandler />
-          <Routes>
-            {/* Public Routes */}
-            <Route path="/" element={<Index />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/signup" element={<Signup />} />
-            <Route path="/auth/callback" element={<AuthCallback />} />
-            <Route path="/forgot-password" element={<ForgotPassword />} />
-            <Route path="/reset-password" element={<ResetPassword />} />
-            <Route path="/admin-login" element={<AdminLogin />} />
-            <Route path="/features" element={<Features />} />
-            <Route path="/universities" element={<Universities />} />
-            <Route path="/university/:slug" element={<UniversityDetail />} />
-            <Route path="/about" element={<About />} />
-            <Route path="/safety" element={<Safety />} />
-            <Route path="/privacy" element={<PrivacyPolicy />} />
-            <Route path="/terms" element={<TermsOfService />} />
-            <Route path="/marketplace-rules" element={<MarketplaceRules />} />
+              <SpaRedirectHandler />
+              <PWASplashScreen />
+              <Suspense fallback={<PageLoadingFallback />}>
+                <Routes>
+                  {/* Public Routes */}
+                  <Route path="/" element={<Index />} />
+                  <Route path="/login" element={<Login />} />
+                  <Route path="/signup" element={<Signup />} />
+                  <Route path="/auth/callback" element={<AuthCallback />} />
+                  <Route path="/forgot-password" element={<ForgotPassword />} />
+                  <Route path="/reset-password" element={<ResetPassword />} />
+                  <Route path="/admin-login" element={<AdminLogin />} />
+                  <Route path="/features" element={<Features />} />
+                  <Route path="/universities" element={<Universities />} />
+                  <Route path="/university/:slug" element={<UniversityDetail />} />
+                  <Route path="/about" element={<About />} />
+                  <Route path="/safety" element={<Safety />} />
+                  <Route path="/privacy" element={<PrivacyPolicy />} />
+                  <Route path="/terms" element={<TermsOfService />} />
+                  <Route path="/marketplace-rules" element={<MarketplaceRules />} />
 
-            <Route path="/explore" element={<Explore />} />
+                  <Route path="/explore" element={<Explore />} />
 
-            {/* Protected Routes with Dashboard Layout */}
-            <Route
-              element={
-                <ProtectedRoute>
-                  <DashboardLayout />
-                  <AdPopup />
-                </ProtectedRoute>
-              }
-            >
-              <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/feed" element={<Feed />} />
-              <Route path="/explore" element={<Explore />} />
-              <Route path="/trending/:hashtag" element={<TrendingPosts />} />
-              <Route path="/anonymous" element={<Anonymous />} />
-              <Route path="/hostel" element={<Hostel />} />
-              <Route path="/hostel/:id" element={<HostelDetail />} />
-              <Route path="/hostel/create" element={<CreateHostelListing />} />
-              <Route path="/hostel/roommate" element={<CreateRoommateRequest />} />
-              <Route path="/marketplace" element={<Marketplace />} />
-              <Route path="/messages" element={<Messages />} />
-              <Route path="/groups" element={<Groups />} />
-              <Route path="/academic" element={<Academic />} />
-              <Route path="/notifications" element={<Notifications />} />
-              <Route path="/profile" element={<Profile />} />
-              <Route path="/profile/edit" element={<EditProfile />} />
-              <Route path="/reputation" element={<ReputationInfo />} />
-              <Route path="/settings" element={<Settings />} />
-            </Route>
+                  {/* Protected Routes with Dashboard Layout */}
+                  <Route
+                    element={
+                      <ProtectedRoute>
+                        <DashboardLayout />
+                        <AdPopup />
+                      </ProtectedRoute>
+                    }
+                  >
+                    <Route path="/dashboard" element={<Dashboard />} />
+                    <Route path="/feed" element={<Feed />} />
+                    <Route path="/explore" element={<Explore />} />
+                    <Route path="/trending/:hashtag" element={<TrendingPosts />} />
+                    <Route path="/anonymous" element={<Anonymous />} />
+                    <Route path="/hostel" element={<Hostel />} />
+                    <Route path="/hostel/:id" element={<HostelDetail />} />
+                    <Route path="/hostel/create" element={<CreateHostelListing />} />
+                    <Route path="/hostel/roommate" element={<CreateRoommateRequest />} />
+                    <Route path="/marketplace" element={<Marketplace />} />
+                    <Route path="/messages" element={<Messages />} />
+                    <Route path="/groups" element={<Groups />} />
+                    <Route path="/academic" element={<Academic />} />
+                    <Route path="/notifications" element={<Notifications />} />
+                    <Route path="/profile" element={<Profile />} />
+                    <Route path="/profile/edit" element={<EditProfile />} />
+                    <Route path="/reputation" element={<ReputationInfo />} />
+                    <Route path="/settings" element={<Settings />} />
+                  </Route>
 
-            {/* Admin Protected Routes */}
-            <Route
-              path="/admin"
-              element={
-                <AdminProtectedRoute>
-                  <AdminPanel />
-                </AdminProtectedRoute>
-              }
-            />
+                  {/* Admin Protected Routes */}
+                  <Route
+                    path="/admin"
+                    element={
+                      <AdminProtectedRoute>
+                        <AdminPanel />
+                      </AdminProtectedRoute>
+                    }
+                  />
 
-            {/* Catch-all */}
-            <Route path="*" element={<NotFound />} />
-          </Routes>
+                  {/* Catch-all */}
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+              </Suspense>
             </BrowserRouter>
           </TooltipProvider>
         </AdminProvider>

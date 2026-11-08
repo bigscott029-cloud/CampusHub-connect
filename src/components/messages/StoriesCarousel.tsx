@@ -21,6 +21,8 @@ import {
   Type,
   Clock,
   Send,
+  Pencil,
+  Share2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -52,13 +54,44 @@ const StoriesCarousel = ({ onCreateStory, onSelectUserForChat }: StoriesCarousel
   const queryClient = useQueryClient();
   const [selectedStory, setSelectedStory] = useState<Story | null>(null);
   const [storyViewerOpen, setStoryViewerOpen] = useState(false);
-  const [createStoryOpen, setCreateStoryOpen] = useState(false);
+  const [createTextStatusOpen, setCreateTextStatusOpen] = useState(false);
+  const [createMediaStatusOpen, setCreateMediaStatusOpen] = useState(false);
+  const [textBgGradient, setTextBgGradient] = useState("from-indigo-600 to-purple-800");
+  const [mediaPreviewUrl, setMediaPreviewUrl] = useState<string | null>(null);
   const [storyType, setStoryType] = useState<"text" | "image" | "video">("text");
   const [storyContent, setStoryContent] = useState("");
   const [storyFile, setStoryFile] = useState<File | null>(null);
   const [storyReplyText, setStoryReplyText] = useState("");
   const [isSendingReply, setIsSendingReply] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleMediaSelected = (file: File) => {
+    setStoryFile(file);
+    const isVid = file.type.startsWith("video");
+    setStoryType(isVid ? "video" : "image");
+    setMediaPreviewUrl(URL.createObjectURL(file));
+    setCreateMediaStatusOpen(true);
+  };
+
+  const handleShareStatus = async () => {
+    if (!selectedStory) return;
+    const shareText = selectedStory.content.text || `Check out ${selectedStory.userName}'s status on CampusHub!`;
+    const shareUrl = `${window.location.origin}/messages?story=${selectedStory.id}`;
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: `${selectedStory.userName} on CampusHub`,
+          text: shareText,
+          url: shareUrl,
+        });
+      } catch {
+        // User cancelled share
+      }
+    } else {
+      await navigator.clipboard.writeText(`${shareText}\n${shareUrl}`);
+      toast.success("Status link copied to clipboard!");
+    }
+  };
 
   const handleSendStoryReply = async (customText?: string) => {
     const textToSend = customText || storyReplyText.trim();
@@ -206,10 +239,12 @@ const StoriesCarousel = ({ onCreateStory, onSelectUserForChat }: StoriesCarousel
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Story posted!");
-      setCreateStoryOpen(false);
+      toast.success("Status posted!");
+      setCreateTextStatusOpen(false);
+      setCreateMediaStatusOpen(false);
       setStoryContent("");
       setStoryFile(null);
+      setMediaPreviewUrl(null);
       onCreateStory?.();
       queryClient.invalidateQueries({ queryKey: ["stories-carousel"] });
     },
@@ -231,98 +266,43 @@ const StoriesCarousel = ({ onCreateStory, onSelectUserForChat }: StoriesCarousel
       <div className="px-4 py-3 border-b border-border/50">
         <ScrollArea className="w-full whitespace-nowrap">
           <div className="flex gap-3">
-            {/* Create Story Button */}
-            <Dialog open={createStoryOpen} onOpenChange={setCreateStoryOpen}>
-              <DialogTrigger asChild>
-                <button className="flex flex-col items-center gap-1 shrink-0">
-                  <div className="w-16 h-16 rounded-full border-2 border-dashed border-primary/50 flex items-center justify-center bg-primary/5 hover:bg-primary/10 transition-colors">
-                    <Plus className="w-6 h-6 text-primary" />
-                  </div>
-                  <span className="text-xs text-muted-foreground">Add Story</span>
-                </button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Create Story</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4">
-                  <div className="flex gap-2">
-                    <Button
-                      variant={storyType === "text" ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => setStoryType("text")}
-                    >
-                      <Type className="w-4 h-4 mr-1" />
-                      Text
-                    </Button>
-                    <Button
-                      variant={storyType === "image" ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => setStoryType("image")}
-                    >
-                      <ImageIcon className="w-4 h-4 mr-1" />
-                      Image
-                    </Button>
-                    <Button
-                      variant={storyType === "video" ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => setStoryType("video")}
-                    >
-                      <Video className="w-4 h-4 mr-1" />
-                      Video
-                    </Button>
-                  </div>
+            {/* Hidden native media file picker triggered by Add Status button */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*,video/*"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) handleMediaSelected(file);
+              }}
+            />
 
-                  {storyType === "text" ? (
-                    <Textarea
-                      placeholder="What's on your mind?"
-                      value={storyContent}
-                      onChange={(e) => setStoryContent(e.target.value)}
-                      rows={4}
-                      maxLength={280}
-                    />
-                  ) : (
-                    <div
-                      className="rounded-lg border border-dashed p-4 text-center"
-                      onDragOver={(event) => event.preventDefault()}
-                      onDrop={(event) => {
-                        event.preventDefault();
-                        const file = event.dataTransfer.files?.[0];
-                        if (file) setStoryFile(file);
-                      }}
-                    >
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept={storyType === "image" ? "image/*" : "video/*"}
-                        className="hidden"
-                        onChange={(event) => setStoryFile(event.target.files?.[0] ?? null)}
-                      />
-                      <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()}>
-                        Choose {storyType}
-                      </Button>
-                      <p className="mt-2 text-xs text-muted-foreground">
-                        {storyFile ? storyFile.name : `Drag and drop a ${storyType}, or paste a URL below.`}
-                      </p>
-                      <Input
-                        className="mt-3"
-                        placeholder={`Optional ${storyType} URL...`}
-                        value={storyContent}
-                        onChange={(e) => setStoryContent(e.target.value)}
-                      />
-                    </div>
-                  )}
+            {/* 1. Direct Media Status Button */}
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="flex flex-col items-center gap-1 shrink-0 group"
+              title="Add Photo or Video Status"
+            >
+              <div className="w-16 h-16 rounded-full border-2 border-dashed border-primary/70 flex items-center justify-center bg-primary/10 group-hover:bg-primary/20 transition-all shadow-sm">
+                <Plus className="w-6 h-6 text-primary group-hover:scale-110 transition-transform" />
+              </div>
+              <span className="text-xs font-medium text-foreground">Add Status</span>
+            </button>
 
-                  <p className="text-xs text-muted-foreground">
-                    Stories disappear after 24 hours
-                  </p>
-
-                  <Button onClick={() => createStoryMutation.mutate()} disabled={createStoryMutation.isPending} className="w-full">
-                    {createStoryMutation.isPending ? "Posting..." : "Post Story"}
-                  </Button>
-                </div>
-              </DialogContent>
-            </Dialog>
+            {/* 2. Text Status Pen Button (WhatsApp style) */}
+            <button
+              type="button"
+              onClick={() => setCreateTextStatusOpen(true)}
+              className="flex flex-col items-center gap-1 shrink-0 group"
+              title="Write Text Status"
+            >
+              <div className="w-16 h-16 rounded-full border border-border/80 flex items-center justify-center bg-muted/60 group-hover:bg-muted transition-all shadow-sm">
+                <Pencil className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors" />
+              </div>
+              <span className="text-xs text-muted-foreground">Type Status</span>
+            </button>
 
             {/* Stories */}
             {storiesQuery.isLoading && (
@@ -338,9 +318,9 @@ const StoriesCarousel = ({ onCreateStory, onSelectUserForChat }: StoriesCarousel
               <button
                 key={story.id}
                 onClick={() => viewStory(story)}
-                className="flex flex-col items-center gap-1 shrink-0"
+                className="flex flex-col items-center gap-1 shrink-0 group"
               >
-                <div className="w-16 h-16 rounded-full p-0.5 bg-gradient-to-tr from-primary to-accent">
+                <div className="w-16 h-16 rounded-full p-0.5 bg-gradient-to-tr from-emerald-500 via-teal-400 to-blue-500 shadow-sm group-hover:scale-105 transition-transform">
                   <Avatar className="w-full h-full border-2 border-background">
                     {story.avatarUrl && <AvatarImage src={story.avatarUrl} alt={story.userName} />}
                     <AvatarFallback className="bg-primary/10 text-primary">
@@ -358,9 +338,123 @@ const StoriesCarousel = ({ onCreateStory, onSelectUserForChat }: StoriesCarousel
         </ScrollArea>
       </div>
 
-      {/* Story Viewer */}
+      {/* Dialog A: Media Status Preview & Confirmation */}
+      <Dialog open={createMediaStatusOpen} onOpenChange={setCreateMediaStatusOpen}>
+        <DialogContent className="max-w-md p-6">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {storyType === "video" ? <Video className="w-5 h-5 text-primary" /> : <ImageIcon className="w-5 h-5 text-primary" />}
+              Post {storyType === "video" ? "Video" : "Photo"} Status
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {mediaPreviewUrl && (
+              <div className="relative aspect-[9/12] max-h-72 w-full rounded-xl overflow-hidden bg-black flex items-center justify-center">
+                {storyType === "video" ? (
+                  <video src={mediaPreviewUrl} autoPlay loop muted playsInline className="h-full w-full object-contain" />
+                ) : (
+                  <img src={mediaPreviewUrl} alt="Preview" className="h-full w-full object-contain" />
+                )}
+              </div>
+            )}
+
+            <Input
+              placeholder="Add a caption to your status..."
+              value={storyContent}
+              onChange={(e) => setStoryContent(e.target.value)}
+            />
+
+            <p className="text-[11px] text-muted-foreground">Status updates automatically disappear after 24 hours.</p>
+
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1" onClick={() => setCreateMediaStatusOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                variant="hero"
+                className="flex-1"
+                disabled={createStoryMutation.isPending}
+                onClick={() => createStoryMutation.mutate()}
+              >
+                {createStoryMutation.isPending ? "Posting..." : "Share Status"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog B: WhatsApp-Style Text Status Composer */}
+      <Dialog open={createTextStatusOpen} onOpenChange={setCreateTextStatusOpen}>
+        <DialogContent className="max-w-md p-6">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Pencil className="w-5 h-5 text-primary" />
+              Write Text Status
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {/* Color preset selector */}
+            <div className="flex items-center gap-2">
+              {[
+                "from-indigo-600 to-purple-800",
+                "from-emerald-600 to-teal-800",
+                "from-rose-600 to-pink-800",
+                "from-amber-600 to-orange-800",
+                "from-blue-600 to-cyan-800",
+              ].map((gradient) => (
+                <button
+                  key={gradient}
+                  type="button"
+                  onClick={() => setTextBgGradient(gradient)}
+                  className={`w-7 h-7 rounded-full bg-gradient-to-br ${gradient} border-2 ${
+                    textBgGradient === gradient ? "border-white scale-110 shadow" : "border-transparent opacity-80"
+                  } transition-all`}
+                />
+              ))}
+            </div>
+
+            {/* Preview Box */}
+            <div className={`p-6 rounded-2xl bg-gradient-to-br ${textBgGradient} min-h-[160px] flex items-center justify-center text-center shadow-inner`}>
+              <Textarea
+                placeholder="Type your campus status..."
+                value={storyContent}
+                onChange={(e) => {
+                  setStoryType("text");
+                  setStoryContent(e.target.value);
+                }}
+                className="bg-transparent border-none text-white text-lg font-medium placeholder:text-white/60 text-center focus-visible:ring-0 resize-none"
+                rows={4}
+                maxLength={280}
+              />
+            </div>
+
+            <p className="text-[11px] text-muted-foreground">Stories disappear after 24 hours.</p>
+
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1" onClick={() => setCreateTextStatusOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                variant="hero"
+                className="flex-1"
+                disabled={!storyContent.trim() || createStoryMutation.isPending}
+                onClick={() => {
+                  setStoryType("text");
+                  createStoryMutation.mutate();
+                }}
+              >
+                {createStoryMutation.isPending ? "Posting..." : "Share Status"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Story Viewer - [&>button]:hidden prevents duplicate Radix close button */}
       <Dialog open={storyViewerOpen} onOpenChange={setStoryViewerOpen}>
-        <DialogContent className="max-w-md p-0 overflow-hidden">
+        <DialogContent className="max-w-md p-0 overflow-hidden [&>button]:hidden">
           {selectedStory && (
             <div className="relative bg-gradient-to-br from-primary/20 to-accent/20 aspect-[9/16] flex items-center justify-center">
               {/* Progress bars */}
@@ -377,7 +471,7 @@ const StoriesCarousel = ({ onCreateStory, onSelectUserForChat }: StoriesCarousel
               </div>
 
               {/* User info */}
-              <div className="absolute top-8 left-4 right-4 flex items-center justify-between">
+              <div className="absolute top-8 left-4 right-4 flex items-center justify-between z-20">
                 <div className="flex items-center gap-2">
                   <Avatar className="w-8 h-8">
                     {selectedStory.avatarUrl && <AvatarImage src={selectedStory.avatarUrl} alt={selectedStory.userName} />}
@@ -387,14 +481,27 @@ const StoriesCarousel = ({ onCreateStory, onSelectUserForChat }: StoriesCarousel
                   </Avatar>
                   <span className="text-white text-sm font-medium">{selectedStory.userName}</span>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="text-white hover:bg-white/20"
-                  onClick={() => setStoryViewerOpen(false)}
-                >
-                  <X className="w-5 h-5" />
-                </Button>
+
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-white hover:bg-white/20"
+                    onClick={handleShareStatus}
+                    title="Reshare Status"
+                  >
+                    <Share2 className="w-5 h-5" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-white hover:bg-white/20"
+                    onClick={() => setStoryViewerOpen(false)}
+                    title="Close"
+                  >
+                    <X className="w-5 h-5" />
+                  </Button>
+                </div>
               </div>
 
               {/* Content */}
@@ -413,6 +520,8 @@ const StoriesCarousel = ({ onCreateStory, onSelectUserForChat }: StoriesCarousel
                   <video
                     src={selectedStory.content.url}
                     controls
+                    autoPlay
+                    playsInline
                     className="max-h-[60vh] max-w-full rounded-lg"
                   />
                 )}

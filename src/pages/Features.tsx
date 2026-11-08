@@ -18,7 +18,6 @@ import {
   Users,
   Lock,
   Globe,
-  Sparkles,
   TrendingUp,
   Clock,
   Star,
@@ -101,7 +100,7 @@ const Features = () => {
           <div className="container px-4 relative">
             <div className="text-center max-w-3xl mx-auto">
               <Badge className="mb-4 gradient-bg text-primary-foreground">
-                <Sparkles className="w-3 h-3 mr-1" />
+                <Star className="w-3 h-3 mr-1" />
                 All-in-One Campus Platform
               </Badge>
               <h1 className="text-4xl md:text-5xl lg:text-6xl font-display font-bold mb-6">
